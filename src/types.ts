@@ -5,4 +5,5 @@ export interface AsanaThreadId {
 
 export interface AsanaAdapterConfig {
   patToken: string;
+  workspaceGid: string;
 }
