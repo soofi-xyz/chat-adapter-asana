@@ -7,7 +7,7 @@ export default defineProject({
       provider: "v8",
       reporter: ["text", "json-summary"],
       include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts"],
+      exclude: ["src/**/*.test.ts", "src/**/*.typecheck.ts"],
     },
   },
 });

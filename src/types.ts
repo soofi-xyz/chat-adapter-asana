@@ -3,7 +3,9 @@ export interface AsanaThreadId {
   projectGid: string;
 }
 
-export interface AsanaAdapterConfig {
-  patToken: string;
-  workspaceGid: string;
+export interface AsanaClientConfig {
+  accessToken: string;
+  baseUrl?: string;
+  fetch?: typeof fetch;
+  maxRateLimitRetries?: number;
 }
