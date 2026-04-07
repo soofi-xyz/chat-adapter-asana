@@ -20,7 +20,7 @@
     "dev": "tsup --watch",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "clean": "rm -rf dist"
   },
   "peerDependencies": {

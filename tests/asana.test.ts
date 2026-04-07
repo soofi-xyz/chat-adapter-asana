@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 
-import { AsanaApiError, createAsanaClient } from "./asana";
+import { AsanaApiError, createAsanaClient } from "../src/asana";
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}): Response =>
   new Response(JSON.stringify(body), {
@@ -16,7 +16,7 @@ test("serializes nested select trees into opt_fields and projects the return typ
     const url = String(input);
     expect(url).toContain("/user_task_lists/utl_123/tasks");
     expect(url).toContain(
-      "opt_fields=name%2Cassignee.name%2Cmemberships.project.name",
+      "opt_fields=name%2Cassignee.gid%2Cmemberships.project.name",
     );
 
     return jsonResponse({
