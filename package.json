@@ -2,6 +2,7 @@
   "name": "chat-adapter-asana",
   "version": "0.1.0",
   "description": "Asana adapter for Chat SDK",
+  "packageManager": "pnpm@9.15.9",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
