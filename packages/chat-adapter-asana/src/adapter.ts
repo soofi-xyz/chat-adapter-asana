@@ -94,6 +94,13 @@ export class AsanaAdapter
   private logger: Logger;
   private readonly converter = new AsanaFormatConverter();
   private readonly emojiResolver = new EmojiResolver();
+  /**
+   * Last observed non-bot sender per thread, used to automatically tag the
+   * right person when the bot posts a reply. Keyed by encoded threadId,
+   * value is the Asana user GID. Populated in the webhook factories right
+   * after we parse an incoming task/story, and read in {@link postMessage}.
+   */
+  private readonly recentCommenter = new Map<string, string>();
   private botUser:
     | { gid: string; name: string; email?: string }
     | null;
@@ -294,6 +301,10 @@ export class AsanaAdapter
           "Task assignee is not the bot; skipping.",
         );
       }
+      this.rememberRecentCommenter(
+        threadId,
+        task.created_by?.gid ?? task.assignee?.gid,
+      );
       return this.taskToDescriptionMessage(task);
     };
 
@@ -318,6 +329,7 @@ export class AsanaAdapter
           "Task completion event received but task is not completed.",
         );
       }
+      this.rememberRecentCommenter(threadId, event.user?.gid);
       return this.taskToCompletionMessage(task, event);
     };
 
@@ -353,6 +365,7 @@ export class AsanaAdapter
           "Story authored by the bot itself; skipping.",
         );
       }
+      this.rememberRecentCommenter(threadId, story.created_by?.gid);
       const message = this.storyToMessage(story, taskGid);
       if (this.containsBotMention(story)) {
         message.isMention = true;
@@ -514,7 +527,8 @@ export class AsanaAdapter
     const files = extractFiles(message);
     const card = extractCard(message);
 
-    const htmlText = await this.renderAsanaHtml(message, card);
+    const rendered = await this.renderAsanaHtml(message, card);
+    const htmlText = this.injectRecentMention(threadId, rendered);
 
     const story = await this.client.stories.createOnTask(
       taskGid,
@@ -680,10 +694,47 @@ export class AsanaAdapter
     return page.data as AsanaAttachment[];
   }
 
-  /** Format an Asana @mention HTML anchor for a user GID. */
-  mentionUser(userGid: string, displayName?: string): string {
-    const label = escapeHtmlText(displayName ?? userGid);
-    return `<a data-asana-gid=\"${userGid}\">${label}</a>`;
+  /**
+   * Record the Asana user GID of the latest non-bot sender on a thread.
+   * Used by {@link postMessage} to automatically prepend a native Asana
+   * `@mention` anchor so bot replies tag the person the bot is replying
+   * to, firing the usual Asana notification.
+   */
+  private rememberRecentCommenter(
+    threadId: string,
+    userGid: string | undefined,
+  ): void {
+    if (!userGid) return;
+    if (this.botUserId && userGid === this.botUserId) return;
+    this.recentCommenter.set(threadId, userGid);
+  }
+
+  /**
+   * Inject a self-closing Asana mention anchor (`<a data-asana-gid="..."/>`)
+   * at the start of the `<body>` of a rendered Asana HTML payload when we
+   * know who the bot is replying to and the payload does not already
+   * mention them. The self-closing anchor is the documented form that
+   * triggers an `@mention` notification and auto-expands to the user's
+   * display name on render. See
+   * https://developers.asana.com/docs/rich-text#links.
+   */
+  private injectRecentMention(
+    threadId: string,
+    htmlText: string | null,
+  ): string | null {
+    if (!htmlText) return htmlText;
+    const userGid = this.recentCommenter.get(threadId);
+    if (!userGid) return htmlText;
+    if (htmlText.includes(`data-asana-gid="${userGid}"`)) {
+      return htmlText;
+    }
+    const anchor = `<a data-asana-gid="${userGid}"/> `;
+    const openingBody = htmlText.indexOf("<body>");
+    if (openingBody === -1) {
+      return `<body>${anchor}${htmlText}</body>`;
+    }
+    const insertAt = openingBody + "<body>".length;
+    return `${htmlText.slice(0, insertAt)}${anchor}${htmlText.slice(insertAt)}`;
   }
 
   private async renderAsanaHtml(

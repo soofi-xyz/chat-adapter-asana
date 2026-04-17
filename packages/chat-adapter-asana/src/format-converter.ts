@@ -88,6 +88,8 @@ const nodeToHtml = (node: unknown): string => {
       return children;
     case "root":
       return children;
+    case "html":
+      return typeof maybe.value === "string" ? maybe.value : "";
     default:
       return children;
   }

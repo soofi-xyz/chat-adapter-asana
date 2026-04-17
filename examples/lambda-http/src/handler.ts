@@ -95,16 +95,16 @@ const handleIncoming = async (
   await thread.subscribe().catch(() => undefined);
 
   if (isAsanaTaskCompletionMessage(message)) {
-    await thread.post(
-      `Acknowledged: task completed by ${formatAuthor(message)}.`,
-    );
+    await thread.post({
+      markdown: `Acknowledged: task completed by ${formatAuthor(message)}.`,
+    });
     return;
   }
 
   if (isAsanaTaskDescriptionMessage(message)) {
     await thread.post({
       markdown:
-        `Hello ${formatMention(message)}! Thanks for assigning this task. ` +
+        "Hello! Thanks for assigning this task. " +
         "Reply here and mention me to continue the conversation.",
     });
     return;
@@ -115,7 +115,7 @@ const handleIncoming = async (
     if (lower.includes("eye") || lower.includes("attach") || lower.includes("file")) {
       await asana.addReaction(thread.id, message.id, emoji.eyes);
       await thread.post({
-        markdown: `Here is the attachment you asked for, ${formatMention(message)}.`,
+        markdown: "Here is the attachment you asked for.",
         files: [
           {
             filename: "hello.txt",
@@ -130,24 +130,14 @@ const handleIncoming = async (
       return;
     }
 
-    await thread.post(
-      `Got your message, ${formatMention(message)}: "${message.text ?? ""}"`,
-    );
+    await thread.post({
+      markdown: `Got your message: "${message.text ?? ""}"`,
+    });
   }
 };
 
 const formatAuthor = (message: Message): string =>
   message.author?.fullName ?? message.author?.userName ?? "someone";
-
-const formatMention = (message: Message): string => {
-  const author = message.author;
-  if (!author) return "there";
-  const gid = author.userId;
-  if (gid) {
-    return `<a data-asana-gid="${gid}" href="https://app.asana.com/0/0/${gid}">@${author.fullName ?? author.userName ?? gid}</a>`;
-  }
-  return `@${author.fullName ?? author.userName ?? "there"}`;
-};
 
 const requireEnv = (key: string): string => {
   const value = process.env[key];

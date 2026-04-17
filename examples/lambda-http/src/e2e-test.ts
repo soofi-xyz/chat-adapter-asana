@@ -100,17 +100,31 @@ const main = async (): Promise<void> => {
     (story) =>
       story.type === "comment" &&
       story.created_by?.gid === bot.gid &&
-      typeof story.text === "string" &&
-      story.text.toLowerCase().includes("hello"),
+      typeof story.html_text === "string" &&
+      story.html_text.includes("Thanks for assigning"),
     "bot acknowledging the task description",
   );
-  log(`Bot replied: gid=${firstBotReply.gid} text="${firstBotReply.text ?? ""}"`);
+  log(
+    `Bot replied: gid=${firstBotReply.gid} html_text="${firstBotReply.html_text ?? ""}"`,
+  );
+  const mentionRegex = new RegExp(
+    `data-asana-type="user"[^>]*data-asana-gid="${sender.gid}"|data-asana-gid="${sender.gid}"[^>]*data-asana-type="user"`,
+  );
+  if (
+    !firstBotReply.html_text ||
+    !mentionRegex.test(firstBotReply.html_text)
+  ) {
+    throw new Error(
+      `Bot reply does not contain an expanded @mention anchor for sender ${sender.gid}: ${firstBotReply.html_text}`,
+    );
+  }
+  log("Verified bot reply contains native @mention of sender.");
 
   log("Sender posts a follow-up asking for an attachment...");
   const senderFollowUp = (await senderClient.stories.createOnTask(task.gid, {
     html_text:
       `<body>Thanks! Could you please attach a sample text file? ` +
-      `(eye reaction expected) <a data-asana-gid="${bot.gid}">@${bot.name ?? "bot"}</a></body>`,
+      `(eye reaction expected) <a data-asana-gid="${bot.gid}"/></body>`,
   })) as { gid: string };
   log(`Sender follow-up story gid=${senderFollowUp.gid}`);
 
