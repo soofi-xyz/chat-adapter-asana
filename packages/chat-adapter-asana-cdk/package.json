@@ -1,0 +1,66 @@
+{
+  "name": "@soofi/chat-adapter-asana-cdk",
+  "version": "0.1.0",
+  "description": "AWS CDK construct that provisions an HTTP API endpoint and registers an Asana webhook against the bot's My Tasks user task list. Companion to @soofi/chat-adapter-asana.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup && tsup --config tsup.provider.config.ts",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "clean": "rm -rf dist coverage"
+  },
+  "peerDependencies": {
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "4.1.2",
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.0.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "aws-cdk",
+    "cdk",
+    "asana",
+    "chat-sdk",
+    "webhook",
+    "soofi"
+  ],
+  "license": "MIT",
+  "homepage": "https://soofi.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/soofi/asana-chat-sdk-adapter",
+    "directory": "packages/chat-adapter-asana-cdk"
+  },
+  "author": {
+    "name": "soofi.xyz",
+    "url": "https://soofi.xyz"
+  }
+}

@@ -1,4 +1,4 @@
-import type { AsanaClient } from "../src/asana";
+import type { AsanaClient } from "../src/asana-client";
 
 declare const client: AsanaClient;
 

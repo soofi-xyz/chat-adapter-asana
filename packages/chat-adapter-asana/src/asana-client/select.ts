@@ -1,5 +1,10 @@
 import type { AnyObjectNode, SchemaNode } from "./schema";
-import { AsanaTransport, type AsanaPage, type QueryValues } from "./transport";
+import {
+  AsanaTransport,
+  type AsanaPage,
+  type AsanaRequestBody,
+  type QueryValues,
+} from "./transport";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -67,7 +72,7 @@ const serializeSelect = (
   select: Record<string, unknown>,
 ): string => flattenSelect(schema, select).join(",");
 
-export const getResource = async <Result>(options: {
+interface SelectCallOptions {
   transport: AsanaTransport;
   path: string;
   schema: AnyObjectNode;
@@ -75,33 +80,75 @@ export const getResource = async <Result>(options: {
   query?: QueryValues;
   select?: Record<string, unknown>;
   signal?: AbortSignal;
-}): Promise<Result> => {
-  const effectiveSelect = options.select ?? options.defaultSelect;
-  const data = await options.transport.get<Result>(options.path, {
-    ...options.query,
-    opt_fields: serializeSelect(options.schema, effectiveSelect),
-  }, options.signal);
+}
 
-  return data.data;
+interface WriteCallOptions extends SelectCallOptions {
+  body?: AsanaRequestBody;
+}
+
+export const getResource = async <Result>(
+  options: SelectCallOptions,
+): Promise<Result> => {
+  const effectiveSelect = options.select ?? options.defaultSelect;
+  const response = await options.transport.get<Result>(
+    options.path,
+    {
+      ...options.query,
+      opt_fields: serializeSelect(options.schema, effectiveSelect),
+    },
+    options.signal,
+  );
+
+  return response.data;
 };
 
-export const getCollection = async <Result>(options: {
-  transport: AsanaTransport;
-  path: string;
-  schema: AnyObjectNode;
-  defaultSelect: Record<string, unknown>;
-  query?: QueryValues;
-  select?: Record<string, unknown>;
-  signal?: AbortSignal;
-}): Promise<AsanaPage<Result>> => {
+export const getCollection = async <Result>(
+  options: SelectCallOptions,
+): Promise<AsanaPage<Result>> => {
   const effectiveSelect = options.select ?? options.defaultSelect;
-  const response = await options.transport.get<Result[]>(options.path, {
-    ...options.query,
-    opt_fields: serializeSelect(options.schema, effectiveSelect),
-  }, options.signal);
+  const response = await options.transport.get<Result[]>(
+    options.path,
+    {
+      ...options.query,
+      opt_fields: serializeSelect(options.schema, effectiveSelect),
+    },
+    options.signal,
+  );
 
   return {
     data: response.data,
     nextPage: response.next_page ?? null,
   };
+};
+
+export const postResource = async <Result>(
+  options: WriteCallOptions,
+): Promise<Result> => {
+  const effectiveSelect = options.select ?? options.defaultSelect;
+  const response = await options.transport.post<Result>(options.path, {
+    query: {
+      ...options.query,
+      opt_fields: serializeSelect(options.schema, effectiveSelect),
+    },
+    body: options.body,
+    signal: options.signal,
+  });
+
+  return response.data;
+};
+
+export const putResource = async <Result>(
+  options: WriteCallOptions,
+): Promise<Result> => {
+  const effectiveSelect = options.select ?? options.defaultSelect;
+  const response = await options.transport.put<Result>(options.path, {
+    query: {
+      ...options.query,
+      opt_fields: serializeSelect(options.schema, effectiveSelect),
+    },
+    body: options.body,
+    signal: options.signal,
+  });
+
+  return response.data;
 };

@@ -203,8 +203,12 @@ export const taskSchema = object({
   gid: scalar<string>(),
   resource_type: scalar<"task">(),
   name: scalar<string>(),
+  notes: scalar<string>(),
+  html_notes: scalar<string>(),
   completed: scalar<boolean>(),
   completed_at: nullable(scalar<string>()),
+  created_at: nullable(scalar<string>()),
+  modified_at: nullable(scalar<string>()),
   due_at: nullable(scalar<string>()),
   due_on: nullable(scalar<string>()),
   start_at: nullable(scalar<string>()),
@@ -212,12 +216,58 @@ export const taskSchema = object({
   permalink_url: nullable(scalar<string>()),
   assignee_status: nullable(scalar<string>()),
   assignee: nullable(userSchema),
+  created_by: nullable(userSchema),
   workspace: workspaceSchema,
   memberships: arrayOf(taskMembershipSchema),
 });
 
+export const reactionSummaryItemSchema = object({
+  emoji_base: scalar<string>(),
+  variant: scalar<string>(),
+  count: scalar<number>(),
+  reacted: scalar<boolean>(),
+});
+
+export const storySchema = object({
+  gid: scalar<string>(),
+  resource_type: scalar<"story">(),
+  resource_subtype: scalar<string>(),
+  type: scalar<string>(),
+  text: scalar<string>(),
+  html_text: scalar<string>(),
+  created_at: scalar<string>(),
+  created_by: nullable(userSchema),
+  is_edited: scalar<boolean>(),
+  is_pinned: scalar<boolean>(),
+  hearted: scalar<boolean>(),
+  reaction_summary: arrayOf(reactionSummaryItemSchema),
+});
+
+export const attachmentSchema = object({
+  gid: scalar<string>(),
+  resource_type: scalar<"attachment">(),
+  name: scalar<string>(),
+  download_url: nullable(scalar<string>()),
+  permanent_url: nullable(scalar<string>()),
+  size: nullable(scalar<number>()),
+  host: nullable(scalar<string>()),
+});
+
+export const webhookSchema = object({
+  gid: scalar<string>(),
+  resource_type: scalar<"webhook">(),
+  active: scalar<boolean>(),
+  target: scalar<string>(),
+});
+
 export type AsanaUser = InferNode<typeof userSchema>;
 export type AsanaTask = InferNode<typeof taskSchema>;
+export type AsanaStory = InferNode<typeof storySchema>;
+export type AsanaReactionSummaryItem = InferNode<
+  typeof reactionSummaryItemSchema
+>;
+export type AsanaAttachment = InferNode<typeof attachmentSchema>;
+export type AsanaWebhook = InferNode<typeof webhookSchema>;
 export type AsanaUserTaskList = InferNode<typeof userTaskListSchema>;
 export type AsanaWorkspace = InferNode<typeof workspaceSchema>;
 export type AsanaProject = InferNode<typeof projectSchema>;
@@ -225,4 +275,7 @@ export type AsanaSection = InferNode<typeof sectionSchema>;
 
 export type AsanaUserSelect = SelectionFor<typeof userSchema>;
 export type AsanaTaskSelect = SelectionFor<typeof taskSchema>;
+export type AsanaStorySelect = SelectionFor<typeof storySchema>;
+export type AsanaAttachmentSelect = SelectionFor<typeof attachmentSchema>;
+export type AsanaWebhookSelect = SelectionFor<typeof webhookSchema>;
 export type AsanaUserTaskListSelect = SelectionFor<typeof userTaskListSchema>;

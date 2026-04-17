@@ -46,7 +46,9 @@ export class AsanaApiError extends Error {
     body: unknown;
   }) {
     const [firstError] = options.errors;
-    super(firstError?.message ?? `Asana API request failed with status ${options.status}`);
+    super(
+      firstError?.message ?? `Asana API request failed with status ${options.status}`,
+    );
     this.name = "AsanaApiError";
     this.status = options.status;
     this.errors = options.errors;
@@ -54,6 +56,18 @@ export class AsanaApiError extends Error {
     this.phrase = firstError?.phrase;
     this.body = options.body;
   }
+}
+
+export type AsanaRequestBody =
+  | Record<string, unknown>
+  | { __multipart: FormData }
+  | undefined;
+
+export interface AsanaRequestOptions {
+  query?: QueryValues;
+  signal?: AbortSignal;
+  body?: AsanaRequestBody;
+  headers?: Record<string, string>;
 }
 
 export class AsanaTransport {
@@ -69,7 +83,9 @@ export class AsanaTransport {
 
     const fetchImpl = config.fetch ?? globalThis.fetch;
     if (!fetchImpl) {
-      throw new Error("No fetch implementation is available. Pass one in AsanaClientConfig.fetch.");
+      throw new Error(
+        "No fetch implementation is available. Pass one in AsanaClientConfig.fetch.",
+      );
     }
 
     this.accessToken = config.accessToken;
@@ -78,22 +94,53 @@ export class AsanaTransport {
     this.maxRateLimitRetries = config.maxRateLimitRetries ?? 2;
   }
 
-  async get<T>(
+  get<T>(
     path: string,
     query: QueryValues = {},
     signal?: AbortSignal,
   ): Promise<AsanaEnvelope<T>> {
+    return this.request<T>("GET", path, { query, signal });
+  }
+
+  post<T>(path: string, options: AsanaRequestOptions = {}): Promise<AsanaEnvelope<T>> {
+    return this.request<T>("POST", path, options);
+  }
+
+  put<T>(path: string, options: AsanaRequestOptions = {}): Promise<AsanaEnvelope<T>> {
+    return this.request<T>("PUT", path, options);
+  }
+
+  delete<T = Record<string, never>>(
+    path: string,
+    options: AsanaRequestOptions = {},
+  ): Promise<AsanaEnvelope<T>> {
+    return this.request<T>("DELETE", path, options);
+  }
+
+  private async request<T>(
+    method: "GET" | "POST" | "PUT" | "DELETE",
+    path: string,
+    options: AsanaRequestOptions,
+  ): Promise<AsanaEnvelope<T>> {
     let attempt = 0;
 
     while (true) {
-      const response = await this.fetchImpl(this.buildUrl(path, query), {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          Accept: "application/json",
+      const { headers, body } = buildRequestBody(options.body);
+
+      const response = await this.fetchImpl(
+        this.buildUrl(path, options.query ?? {}),
+        {
+          method,
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            Accept: "application/json",
+            ...headers,
+            ...(options.headers ?? {}),
+          },
+          body,
+          signal: options.signal,
         },
-        signal,
-      });
+      );
 
       if (response.status === 429 && attempt < this.maxRateLimitRetries) {
         const retryAfterSeconds = readRetryAfterSeconds(response);
@@ -104,7 +151,7 @@ export class AsanaTransport {
         }
       }
 
-      return parseAsanaResponse<T>(response);
+      return parseAsanaResponse<T>(response, method);
     }
   }
 
@@ -124,6 +171,31 @@ export class AsanaTransport {
   }
 }
 
+const buildRequestBody = (
+  body: AsanaRequestBody,
+): { headers: Record<string, string>; body: BodyInit | undefined } => {
+  if (body === undefined) {
+    return { headers: {}, body: undefined };
+  }
+
+  if (isMultipart(body)) {
+    return { headers: {}, body: body.__multipart };
+  }
+
+  return {
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data: body }),
+  };
+};
+
+const isMultipart = (
+  body: AsanaRequestBody,
+): body is { __multipart: FormData } =>
+  typeof body === "object" &&
+  body !== null &&
+  "__multipart" in body &&
+  (body as { __multipart: unknown }).__multipart instanceof FormData;
+
 const sleep = async (milliseconds: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
 };
@@ -141,7 +213,10 @@ const readRetryAfterSeconds = (response: Response): number | null => {
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const parseAsanaResponse = async <T>(response: Response): Promise<AsanaEnvelope<T>> => {
+const parseAsanaResponse = async <T>(
+  response: Response,
+  method: string,
+): Promise<AsanaEnvelope<T>> => {
   const body = await response.json().catch(() => undefined);
   if (!response.ok) {
     const errorBody = isPlainObject(body) ? (body as AsanaErrorResponse) : undefined;
@@ -151,6 +226,10 @@ const parseAsanaResponse = async <T>(response: Response): Promise<AsanaEnvelope<
       retryAfterSeconds: readRetryAfterSeconds(response),
       body,
     });
+  }
+
+  if (method === "DELETE" && body === undefined) {
+    return { data: {} as T };
   }
 
   if (!isPlainObject(body) || !("data" in body)) {

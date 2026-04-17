@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build + Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm -r --filter "./packages/*" run typecheck
+      - name: Build
+        run: pnpm -r --filter "./packages/*" run build
+      - name: Test
+        run: pnpm -r --filter "./packages/*" run test
+      - name: Typecheck example
+        run: pnpm --filter "@soofi-examples/chat-adapter-asana-lambda-http" run typecheck
+      - name: Synth example CDK stack (smoke test)
+        env:
+          ASANA_PAT: dummy
+          ASANA_WORKSPACE_GID: dummy
+          CDK_DEFAULT_ACCOUNT: "111111111111"
+          CDK_DEFAULT_REGION: us-east-1
+        run: |
+          pnpm --filter "@soofi-examples/chat-adapter-asana-lambda-http" run build
+          cd examples/lambda-http
+          pnpm exec cdk synth --no-lookups > /dev/null

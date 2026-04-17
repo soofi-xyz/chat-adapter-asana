@@ -1,0 +1,33 @@
+{
+  "name": "@soofi-examples/chat-adapter-asana-lambda-http",
+  "version": "0.0.0",
+  "private": true,
+  "description": "End-to-end example for @soofi/chat-adapter-asana: AWS Lambda + HTTP API webhook handler provisioned via CDK.",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "synth": "AWS_PROFILE=$AWS_PROFILE pnpm run build && cdk synth",
+    "deploy": "pnpm run build && cdk deploy --require-approval never",
+    "destroy": "cdk destroy --force",
+    "test:e2e": "tsx src/e2e-test.ts",
+    "clean": "rm -rf dist cdk.out"
+  },
+  "dependencies": {
+    "@soofi/chat-adapter-asana": "workspace:*",
+    "@soofi/chat-adapter-asana-cdk": "workspace:*",
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
+    "@chat-adapter/state-memory": "^4.26.0",
+    "chat": "^4.26.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.0.0",
+    "aws-cdk": "^2.1000.0",
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.0.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

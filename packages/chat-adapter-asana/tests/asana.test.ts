@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 
-import { AsanaApiError, createAsanaClient } from "../src/asana";
+import { AsanaApiError, createAsanaClient } from "../src/asana-client";
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}): Response =>
   new Response(JSON.stringify(body), {
