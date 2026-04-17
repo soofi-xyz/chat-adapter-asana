@@ -40,19 +40,19 @@ export interface AsanaAdapterConfig {
 
 /**
  * Discriminator placed on `Message.raw` so downstream handlers can distinguish
- * between normal comments, task-start payloads, and task-completion payloads.
+ * between regular comments and the initial task-description message.
+ *
+ * Task completion is not represented as a message — it is dispatched as a
+ * `:white_check_mark:` reaction event via `chat.onReaction`.
  */
-export type AsanaMessageKind =
-  | "comment"
-  | "task_description"
-  | "task_completed";
+export type AsanaMessageKind = "comment" | "task_description";
 
 /** The shape stored in `Message.raw` by the adapter. */
 export interface AsanaRawMessage {
   kind: AsanaMessageKind;
   taskGid: string;
-  /** Story GID for comments / completion; equals task GID for the description. */
+  /** Story GID for comments; equals task GID for the description. */
   storyGid?: string;
-  /** Original Asana payload (task, story, or event) when available. */
+  /** Original Asana payload (task or story) when available. */
   payload?: unknown;
 }

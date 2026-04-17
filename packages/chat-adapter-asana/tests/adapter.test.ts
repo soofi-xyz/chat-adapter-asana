@@ -4,11 +4,7 @@ import { AsanaAdapter } from "../src/adapter";
 import {
   InMemoryWebhookSecretStore,
 } from "../src/webhook-secret-store";
-import {
-  isAsanaTaskCompletionMessage,
-  isAsanaTaskDescriptionMessage,
-} from "../src/task-completion";
-import type { ChatInstance } from "chat";
+import type { ChatInstance, ReactionEvent } from "chat";
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}): Response =>
   new Response(JSON.stringify(body), {
@@ -33,8 +29,10 @@ const buildAdapter = (fetchImpl: typeof fetch) =>
 const fakeChat = (): {
   chat: ChatInstance;
   processed: Array<{ threadId: string; message: unknown }>;
+  reactions: Array<Omit<ReactionEvent, "adapter" | "thread">>;
 } => {
   const processed: Array<{ threadId: string; message: unknown }> = [];
+  const reactions: Array<Omit<ReactionEvent, "adapter" | "thread">> = [];
   const chat = {
     getLogger: () => console,
     getState: () => undefined as unknown as ReturnType<ChatInstance["getState"]>,
@@ -54,10 +52,12 @@ const fakeChat = (): {
     },
     processModalClose: () => {},
     processModalSubmit: async () => undefined,
-    processReaction: () => {},
+    processReaction: (event: Omit<ReactionEvent, "adapter" | "thread">) => {
+      reactions.push(event);
+    },
     processSlashCommand: () => {},
   } as unknown as ChatInstance;
-  return { chat, processed };
+  return { chat, processed, reactions };
 };
 
 describe("AsanaAdapter.encodeThreadId", () => {
@@ -159,28 +159,36 @@ describe("AsanaAdapter.handleWebhook", () => {
     await new Promise((r) => setTimeout(r, 20));
 
     expect(processed).toHaveLength(1);
-    const message = processed[0]!.message as { text: string; isMention?: boolean; raw: { kind: string } };
+    const message = processed[0]!.message as {
+      text: string;
+      isMention?: boolean;
+      raw: { kind: string };
+    };
     expect(message.text).toBe("Please help me");
     expect(message.isMention).toBe(true);
-    expect(isAsanaTaskDescriptionMessage(message as never)).toBe(true);
+    expect(message.raw.kind).toBe("task_description");
   });
 
-  test("emits task_completed messages when the completed field changes", async () => {
+  test("delivers plain task comments as subscribed messages (no isMention)", async () => {
     const { chat, processed } = fakeChat();
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({
         data: {
-          gid: "task_100",
-          name: "Hello",
-          notes: "done",
-          html_notes: "<body>done</body>",
-          completed: true,
-          completed_at: "2024-01-02T00:00:00Z",
+          gid: "story_plain",
+          resource_type: "story",
+          resource_subtype: "comment_added",
+          type: "comment",
+          text: "just a comment",
+          html_text: "<body>just a comment</body>",
           created_at: "2024-01-01T00:00:00Z",
-          permalink_url: "https://app.asana.com/0/0/task_100",
-          assignee: { gid: botUser.gid, name: "asana-bot", email: "bot@example.com" },
-          workspace: { gid: "ws_1", name: "WS" },
-          memberships: [],
+          is_edited: false,
+          created_by: {
+            gid: "sender_3",
+            resource_type: "user",
+            name: "Carol",
+            email: "carol@example.com",
+          },
+          reaction_summary: [],
         },
       }),
     );
@@ -190,11 +198,11 @@ describe("AsanaAdapter.handleWebhook", () => {
     const eventBody = JSON.stringify({
       events: [
         {
-          action: "changed",
-          resource: { gid: "task_100", resource_type: "task" },
-          change: { field: "completed", action: "changed" },
-          user: { gid: "sender_1", resource_type: "user" },
-          created_at: "2024-01-02T00:00:00Z",
+          action: "added",
+          resource: { gid: "story_plain", resource_type: "story" },
+          parent: { gid: "task_plain", resource_type: "task" },
+          user: { gid: "sender_3", resource_type: "user" },
+          created_at: "2024-01-01T00:00:00Z",
         },
       ],
     });
@@ -209,10 +217,159 @@ describe("AsanaAdapter.handleWebhook", () => {
         body: eventBody,
       }),
     );
-
     await new Promise((r) => setTimeout(r, 20));
+
     expect(processed).toHaveLength(1);
-    expect(isAsanaTaskCompletionMessage(processed[0]!.message as never)).toBe(true);
+    const message = processed[0]!.message as {
+      isMention?: boolean;
+      raw: { kind: string };
+    };
+    expect(message.raw.kind).toBe("comment");
+    expect(message.isMention).toBeFalsy();
+  });
+
+  test("dispatches a :white_check_mark: reaction when a task is completed", async () => {
+    const { chat, reactions } = fakeChat();
+    const fetchMock = vi.fn(
+      async (url: URL | RequestInfo | string) => {
+        const urlStr = String(url);
+        if (urlStr.includes("/users/sender_complete")) {
+          return jsonResponse({
+            data: {
+              gid: "sender_complete",
+              name: "Finisher",
+              email: "f@example.com",
+            },
+          });
+        }
+        return jsonResponse({
+          data: {
+            gid: "task_done",
+            name: "Hello",
+            notes: "done",
+            html_notes: "<body>done</body>",
+            completed: true,
+            completed_at: "2024-01-02T00:00:00Z",
+            created_at: "2024-01-01T00:00:00Z",
+            permalink_url: "https://app.asana.com/0/0/task_done",
+            assignee: {
+              gid: botUser.gid,
+              name: "asana-bot",
+              email: "bot@example.com",
+            },
+            workspace: { gid: "ws_1", name: "WS" },
+            memberships: [],
+          },
+        });
+      },
+    );
+    const adapter = buildAdapter(fetchMock as unknown as typeof fetch);
+    await adapter.initialize(chat);
+
+    const eventBody = JSON.stringify({
+      events: [
+        {
+          action: "changed",
+          resource: { gid: "task_done", resource_type: "task" },
+          change: { field: "completed", action: "changed" },
+          user: { gid: "sender_complete", resource_type: "user" },
+          created_at: "2024-01-02T00:00:00Z",
+        },
+      ],
+    });
+    const signature = createHmac("sha256", "secret")
+      .update(eventBody)
+      .digest("hex");
+
+    const pending: Array<Promise<unknown>> = [];
+    await adapter.handleWebhook(
+      new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "X-Hook-Signature": signature },
+        body: eventBody,
+      }),
+      { waitUntil: (task) => pending.push(task) },
+    );
+    await Promise.all(pending);
+
+    expect(reactions).toHaveLength(1);
+    const reaction = reactions[0]!;
+    expect(reaction.added).toBe(true);
+    expect(reaction.rawEmoji).toBe("\u2705");
+    expect(reaction.messageId).toBe("task_done");
+    expect(reaction.user.userId).toBe("sender_complete");
+    expect(reaction.user.fullName).toBe("Finisher");
+    expect(reaction.threadId).toBe(
+      adapter.encodeThreadId({ taskGid: "task_done" }),
+    );
+  });
+
+  test("dispatches :white_check_mark: with added=false when a task is reopened", async () => {
+    const { chat, reactions } = fakeChat();
+    const fetchMock = vi.fn(
+      async (url: URL | RequestInfo | string) => {
+        const urlStr = String(url);
+        if (urlStr.includes("/users/sender_reopen")) {
+          return jsonResponse({
+            data: {
+              gid: "sender_reopen",
+              name: "Reopener",
+              email: "r@example.com",
+            },
+          });
+        }
+        return jsonResponse({
+          data: {
+            gid: "task_reopen",
+            name: "Hello",
+            notes: "",
+            html_notes: "<body></body>",
+            completed: false,
+            completed_at: null,
+            created_at: "2024-01-01T00:00:00Z",
+            permalink_url: "https://app.asana.com/0/0/task_reopen",
+            assignee: {
+              gid: botUser.gid,
+              name: "asana-bot",
+              email: "bot@example.com",
+            },
+            workspace: { gid: "ws_1", name: "WS" },
+            memberships: [],
+          },
+        });
+      },
+    );
+    const adapter = buildAdapter(fetchMock as unknown as typeof fetch);
+    await adapter.initialize(chat);
+
+    const eventBody = JSON.stringify({
+      events: [
+        {
+          action: "changed",
+          resource: { gid: "task_reopen", resource_type: "task" },
+          change: { field: "completed", action: "changed" },
+          user: { gid: "sender_reopen", resource_type: "user" },
+          created_at: "2024-01-03T00:00:00Z",
+        },
+      ],
+    });
+    const signature = createHmac("sha256", "secret")
+      .update(eventBody)
+      .digest("hex");
+
+    const pending: Array<Promise<unknown>> = [];
+    await adapter.handleWebhook(
+      new Request("https://example.com/webhook", {
+        method: "POST",
+        headers: { "X-Hook-Signature": signature },
+        body: eventBody,
+      }),
+      { waitUntil: (task) => pending.push(task) },
+    );
+    await Promise.all(pending);
+
+    expect(reactions).toHaveLength(1);
+    expect(reactions[0]!.added).toBe(false);
   });
 });
 

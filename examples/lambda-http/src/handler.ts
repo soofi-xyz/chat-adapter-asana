@@ -8,14 +8,11 @@ import {
   GetSecretValueCommand,
   PutSecretValueCommand,
 } from "@aws-sdk/client-secrets-manager";
-import { Chat, emoji, type Thread, Message } from "chat";
+import { Chat, emoji } from "chat";
 import { createMemoryState } from "@chat-adapter/state-memory";
 import {
   createAsanaAdapter,
   SecretsManagerWebhookSecretStore,
-  isAsanaCommentMessage,
-  isAsanaTaskCompletionMessage,
-  isAsanaTaskDescriptionMessage,
 } from "@soofi/chat-adapter-asana";
 
 const secretsManager = new SecretsManagerClient({});
@@ -75,69 +72,56 @@ const getChat = (): Promise<AsanaChat> => {
       logger: "info",
     });
 
-    chat.onNewMention(async (thread, message) => {
-      await handleIncoming(asana, thread, message);
+    chat.onNewMention(async (thread, _message) => {
+      await thread.subscribe().catch(() => undefined);
+      await thread.post({
+        markdown:
+          "Hello! Thanks for assigning this task. " +
+          "Reply here and mention me to continue the conversation.",
+      });
     });
+
     chat.onSubscribedMessage(async (thread, message) => {
-      await handleIncoming(asana, thread, message);
+      const lower = (message.text ?? "").toLowerCase();
+      if (
+        lower.includes("eye") ||
+        lower.includes("attach") ||
+        lower.includes("file")
+      ) {
+        await asana.addReaction(thread.id, message.id, emoji.eyes);
+        await thread.post({
+          markdown: "Here is the attachment you asked for.",
+          files: [
+            {
+              filename: "hello.txt",
+              mimeType: "text/plain",
+              data: Buffer.from(
+                `Hello from @soofi/chat-adapter-asana!\nTime: ${new Date().toISOString()}\n`,
+                "utf8",
+              ),
+            },
+          ],
+        });
+        return;
+      }
+      await thread.post({
+        markdown: `Got your message: "${message.text ?? ""}"`,
+      });
+    });
+
+    chat.onReaction([emoji.check], async (event) => {
+      if (!event.added) return;
+      const who =
+        event.user.fullName ?? event.user.userName ?? "someone";
+      await event.thread.post({
+        markdown: `Acknowledged: task completed by ${who}.`,
+      });
     });
 
     return chat;
   })();
   return bootstrap;
 };
-
-const handleIncoming = async (
-  asana: ReturnType<typeof createAsanaAdapter>,
-  thread: Thread,
-  message: Message,
-): Promise<void> => {
-  await thread.subscribe().catch(() => undefined);
-
-  if (isAsanaTaskCompletionMessage(message)) {
-    await thread.post({
-      markdown: `Acknowledged: task completed by ${formatAuthor(message)}.`,
-    });
-    return;
-  }
-
-  if (isAsanaTaskDescriptionMessage(message)) {
-    await thread.post({
-      markdown:
-        "Hello! Thanks for assigning this task. " +
-        "Reply here and mention me to continue the conversation.",
-    });
-    return;
-  }
-
-  if (isAsanaCommentMessage(message)) {
-    const lower = (message.text ?? "").toLowerCase();
-    if (lower.includes("eye") || lower.includes("attach") || lower.includes("file")) {
-      await asana.addReaction(thread.id, message.id, emoji.eyes);
-      await thread.post({
-        markdown: "Here is the attachment you asked for.",
-        files: [
-          {
-            filename: "hello.txt",
-            mimeType: "text/plain",
-            data: Buffer.from(
-              `Hello from @soofi/chat-adapter-asana!\nTime: ${new Date().toISOString()}\n`,
-              "utf8",
-            ),
-          },
-        ],
-      });
-      return;
-    }
-
-    await thread.post({
-      markdown: `Got your message: "${message.text ?? ""}"`,
-    });
-  }
-};
-
-const formatAuthor = (message: Message): string =>
-  message.author?.fullName ?? message.author?.userName ?? "someone";
 
 const requireEnv = (key: string): string => {
   const value = process.env[key];

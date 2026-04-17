@@ -161,6 +161,26 @@ export const createAsanaClient = (config: AsanaClientConfig) => {
     });
   }
 
+  async function getUserByGid<
+    const Selected extends AsanaUserSelect | undefined = undefined,
+  >(
+    userGid: string,
+    options: ResourceRequestOptions<typeof userSchema, Selected> = {},
+  ): Promise<
+    ResolveSelection<typeof userSchema, Selected, typeof defaultGetMeSelect>
+  > {
+    return getResource<
+      ResolveSelection<typeof userSchema, Selected, typeof defaultGetMeSelect>
+    >({
+      transport,
+      path: `/users/${userGid}`,
+      schema: userSchema,
+      defaultSelect: defaultGetMeSelect,
+      select: options.select,
+      signal: options.signal,
+    });
+  }
+
   async function getUserTaskList<
     const Selected extends AsanaUserTaskListSelect | undefined = undefined,
   >(
@@ -674,6 +694,7 @@ export const createAsanaClient = (config: AsanaClientConfig) => {
     transport,
     users: {
       getMe,
+      get: getUserByGid,
     },
     userTaskLists: {
       get: getUserTaskList,

@@ -5,11 +5,6 @@ export { AsanaFormatConverter } from "./format-converter";
 export * from "./asana-client";
 export * from "./types";
 export {
-  isAsanaTaskCompletionMessage,
-  isAsanaTaskDescriptionMessage,
-  isAsanaCommentMessage,
-} from "./task-completion";
-export {
   InMemoryWebhookSecretStore,
   type WebhookSecretStore,
 } from "./webhook-secret-store";

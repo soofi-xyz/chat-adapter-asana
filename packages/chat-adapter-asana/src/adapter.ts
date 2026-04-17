@@ -75,9 +75,19 @@ export interface AsanaAdapterInternalConfig extends AsanaAdapterConfig {
 }
 
 /**
- * Chat SDK adapter for Asana. Tasks act as threads; story (comment) events act
- * as messages. Task completion is surfaced as a distinct message with
- * `raw.kind === "task_completed"`.
+ * Chat SDK adapter for Asana.
+ *
+ * Event model:
+ *
+ *   - Assigning a task to the bot fires `chat.onNewMention` with the task
+ *     description as the first message of the thread.
+ *   - Subsequent comments on that task fire `chat.onSubscribedMessage`.
+ *   - Marking the task complete fires `chat.onReaction` with a
+ *     `:white_check_mark:` emoji on the task-description message (and
+ *     reopening the task fires the same reaction with `added: false`).
+ *
+ * This lets the same chat-SDK listener model used across Slack/GChat/Teams
+ * work unchanged on top of Asana.
  */
 export class AsanaAdapter
   implements Adapter<AsanaThreadId, AsanaRawMessage>
@@ -311,6 +321,16 @@ export class AsanaAdapter
     chat.processMessage(this, threadId, wrapFactory(factory, this.logger), options);
   }
 
+  /**
+   * Dispatch task completion as a native Chat SDK reaction event.
+   *
+   * Conceptually, "completing" an Asana task is analogous to someone reacting
+   * with a `:white_check_mark:` to the task description (the thread-start
+   * message), so we translate it that way. Bots can subscribe via
+   * `chat.onReaction([emoji.white_check_mark], ...)` to handle it.
+   *
+   * Un-completing a task fires the same reaction with `added: false`.
+   */
   private handleTaskCompleted(
     event: AsanaWebhookEvent,
     options?: WebhookOptions,
@@ -321,19 +341,59 @@ export class AsanaAdapter
     if (!chat) {
       return;
     }
+    const actorGid = event.user?.gid;
+    if (!actorGid) {
+      return;
+    }
+    if (this.botUserId && actorGid === this.botUserId) {
+      return;
+    }
 
-    const factory = async (): Promise<Message<AsanaRawMessage>> => {
+    const run = async (): Promise<void> => {
       const task = await this.client.tasks.get(taskGid);
-      if (!task.completed) {
-        throw new AsanaIgnoreEventError(
-          "Task completion event received but task is not completed.",
-        );
-      }
-      this.rememberRecentCommenter(threadId, event.user?.gid);
-      return this.taskToCompletionMessage(task, event);
+      this.rememberRecentCommenter(threadId, actorGid);
+      const actorUser = await this.client.users
+        .get(actorGid, { select: { name: true, email: true } })
+        .catch(() => null);
+      const user = this.authorFromUser(
+        actorUser ?? { gid: actorGid, name: actorGid, email: "" },
+        taskGid,
+      );
+      const emojiValue = this.emojiResolver.fromGChat("\u2705");
+      // Capture the reaction-handler promise so `run()` doesn't resolve
+      // until the handler work is done. Otherwise the outer Lambda wrapper
+      // snapshots `pending` with only `run()` and returns before handlers
+      // get a chance to execute.
+      const inner: Array<Promise<unknown>> = [];
+      chat.processReaction(
+        {
+          adapter: this,
+          added: Boolean(task.completed),
+          emoji: emojiValue,
+          messageId: task.gid,
+          raw: event,
+          rawEmoji: "\u2705",
+          threadId,
+          user,
+        },
+        {
+          ...(options ?? {}),
+          waitUntil: (p) => {
+            inner.push(p);
+            options?.waitUntil?.(p);
+          },
+        },
+      );
+      await Promise.all(inner);
     };
 
-    chat.processMessage(this, threadId, wrapFactory(factory, this.logger), options);
+    const pending = run().catch((err) => {
+      this.logger.error(
+        "[asana] failed to dispatch task completion reaction",
+        err,
+      );
+    });
+    options?.waitUntil?.(pending);
   }
 
   private handleStoryAdded(
@@ -366,11 +426,7 @@ export class AsanaAdapter
         );
       }
       this.rememberRecentCommenter(threadId, story.created_by?.gid);
-      const message = this.storyToMessage(story, taskGid);
-      if (this.containsBotMention(story)) {
-        message.isMention = true;
-      }
-      return message;
+      return this.storyToMessage(story, taskGid);
     };
 
     chat.processMessage(this, threadId, wrapFactory(factory, this.logger), options);
@@ -380,10 +436,6 @@ export class AsanaAdapter
     if (raw.kind === "task_description") {
       const task = raw.payload as TaskForAdapter;
       return this.taskToDescriptionMessage(task);
-    }
-    if (raw.kind === "task_completed") {
-      const task = raw.payload as TaskForAdapter;
-      return this.taskToCompletionMessage(task);
     }
     const story = raw.payload as StoryForAdapter;
     return this.storyToMessage(story, raw.taskGid);
@@ -413,36 +465,6 @@ export class AsanaAdapter
       attachments: [],
     });
     message.isMention = true;
-    return message;
-  }
-
-  private taskToCompletionMessage(
-    task: TaskForAdapter,
-    event?: AsanaWebhookEvent,
-  ): Message<AsanaRawMessage> {
-    const threadId = this.encodeThreadId({ taskGid: task.gid });
-    const completionText = `Task "${task.name}" was marked complete.`;
-
-    const author = this.authorFromEventUser(event) ??
-      this.authorFromUser(task.assignee, task.gid);
-
-    const message = new Message<AsanaRawMessage>({
-      id: `${task.gid}:completed`,
-      threadId,
-      text: completionText,
-      formatted: this.converter.toAst(completionText),
-      raw: {
-        kind: "task_completed",
-        taskGid: task.gid,
-        payload: task,
-      },
-      author,
-      metadata: {
-        dateSent: task.completed_at ? new Date(task.completed_at) : new Date(),
-        edited: false,
-      },
-      attachments: [],
-    });
     return message;
   }
 
@@ -494,29 +516,6 @@ export class AsanaAdapter
       isBot: user.gid === this.botUserId,
       isMe: user.gid === this.botUserId,
     };
-  }
-
-  private authorFromEventUser(event: AsanaWebhookEvent | undefined) {
-    if (!event?.user) {
-      return null;
-    }
-    return {
-      userId: event.user.gid,
-      userName: event.user.gid,
-      fullName: "",
-      isBot: event.user.gid === this.botUserId,
-      isMe: event.user.gid === this.botUserId,
-    };
-  }
-
-  private containsBotMention(story: StoryForAdapter): boolean {
-    if (!this.botUserId) {
-      return false;
-    }
-    if (story.html_text?.includes(`data-asana-gid="${this.botUserId}"`)) {
-      return true;
-    }
-    return false;
   }
 
   async postMessage(

@@ -146,6 +146,23 @@ const main = async (): Promise<void> => {
   const attachments = await pollForAttachments(task.gid);
   log(`Attachments present: ${attachments.length}`, attachments);
 
+  log("Sender marks the task complete to trigger the onReaction flow...");
+  await senderClient.tasks.update(task.gid, { completed: true });
+
+  log(
+    "Waiting for bot to post the task-completion acknowledgment (onReaction → :white_check_mark:)...",
+  );
+  const completionAck = await pollForStory(
+    task.gid,
+    (story) =>
+      story.type === "comment" &&
+      story.created_by?.gid === bot.gid &&
+      typeof story.html_text === "string" &&
+      story.html_text.includes("Acknowledged: task completed"),
+    "bot acknowledging the task-completion reaction",
+  );
+  log(`Bot posted completion acknowledgment: gid=${completionAck.gid}`);
+
   log("E2E test passed");
 };
 
