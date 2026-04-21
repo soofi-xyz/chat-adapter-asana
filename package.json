@@ -25,7 +25,7 @@
   "homepage": "https://soofi.xyz",
   "repository": {
     "type": "git",
-    "url": "https://github.com/soofi/asana-chat-sdk-adapter"
+    "url": "https://github.com/soofi-xyz/chat-adapter-asana"
   },
   "author": {
     "name": "soofi.xyz",
