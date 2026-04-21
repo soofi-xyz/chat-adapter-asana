@@ -15,6 +15,7 @@
   "files": [
     "dist",
     "README.md",
+    "sample-messages.md",
     "LICENSE"
   ],
   "scripts": {
