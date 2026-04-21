@@ -1,6 +1,6 @@
 {
   "name": "@soofi-xyz/chat-adapter-asana",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Asana adapter for the Chat SDK (chat-sdk.dev). Open source under soofi.xyz.",
   "type": "module",
   "main": "./dist/index.js",
