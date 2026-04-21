@@ -1,7 +1,7 @@
 ---
-
-## "@soofi-xyz/chat-adapter-asana": minor
+"@soofi-xyz/chat-adapter-asana": minor
 "@soofi-xyz/chat-adapter-asana-cdk": minor
+---
 
 Initial public release of the Asana adapter for Chat SDK and its companion AWS CDK construct.
 
