@@ -13,7 +13,7 @@ const buildStack = (): { stack: Stack; handler: LambdaFunction } => {
   const app = new App();
   const stack = new Stack(app, "TestStack");
   const handler = new LambdaFunction(stack, "Handler", {
-    runtime: Runtime.NODEJS_20_X,
+    runtime: Runtime.NODEJS_24_X,
     handler: "index.handler",
     code: Code.fromInline("exports.handler = async () => ({ statusCode: 200 });"),
   });

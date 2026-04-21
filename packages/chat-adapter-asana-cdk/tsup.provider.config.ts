@@ -6,7 +6,7 @@ export default defineConfig({
   },
   outDir: "dist/provider",
   format: ["cjs"],
-  target: "node20",
+  target: "node24",
   bundle: true,
   platform: "node",
   sourcemap: false,

@@ -36,7 +36,7 @@ export class AsanaChatExampleStack extends Stack {
 
     const handlerAssetPath = path.resolve(__dirname, "..", "dist");
     this.handler = new LambdaFunction(this, "WebhookHandler", {
-      runtime: Runtime.NODEJS_20_X,
+      runtime: Runtime.NODEJS_24_X,
       handler: "handler.handler",
       code: Code.fromAsset(handlerAssetPath),
       timeout: Duration.seconds(30),

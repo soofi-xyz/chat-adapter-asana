@@ -17,6 +17,9 @@ importers:
 
   examples/lambda-http:
     dependencies:
+      '@aws-lambda-powertools/event-handler':
+        specifier: ^2.33.0
+        version: 2.33.0(@standard-schema/spec@1.1.0)
       '@aws-sdk/client-secrets-manager':
         specifier: ^3.600.0
         version: 3.1031.0
@@ -143,6 +146,21 @@ packages:
 
   '@aws-crypto/util@5.2.0':
     resolution: {integrity: sha512-4RkU9EsI6ZpBve5fseQlGNUWKMa1RLPQ1dnjnQoe07ldfIzcsGb5hC5W0Dm7u423KWzawlrpbjXBrXCEv9zazQ==}
+
+  '@aws-lambda-powertools/commons@2.33.0':
+    resolution: {integrity: sha512-cXGfWT4FXtLO7Ny/shep6V/xYzgVN7hvukOA0bTa4nlg2GWiQsPoBoKvCEcfQ9I8GIS0tPyDfRkdx80SvA7LpA==}
+
+  '@aws-lambda-powertools/event-handler@2.33.0':
+    resolution: {integrity: sha512-exMn2isxI6V9QL6nbIxWQ7SuUIXBjFlgBCZaXKMEqT96Ufs3tXjIzWYeVXcycLv+jq2wvOJ4Q360mJ1TchU6xg==}
+    peerDependencies:
+      '@aws-lambda-powertools/metrics': '>=2.33.0'
+      '@aws-lambda-powertools/tracer': '>=2.33.0'
+      '@standard-schema/spec': ^1.0.0
+    peerDependenciesMeta:
+      '@aws-lambda-powertools/metrics':
+        optional: true
+      '@aws-lambda-powertools/tracer':
+        optional: true
 
   '@aws-sdk/client-secrets-manager@3.1031.0':
     resolution: {integrity: sha512-yfvYEg/A9OTL88vZ9yMPb9TUC8IcDBRXShy11HOSLHyhjEt6uZ5QHnLjzN7E475prcNI/362fHIPUxOFoucOpQ==}
@@ -2037,6 +2055,15 @@ snapshots:
       '@aws-sdk/types': 3.973.8
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
+
+  '@aws-lambda-powertools/commons@2.33.0':
+    dependencies:
+      '@aws/lambda-invoke-store': 0.2.4
+
+  '@aws-lambda-powertools/event-handler@2.33.0(@standard-schema/spec@1.1.0)':
+    dependencies:
+      '@aws-lambda-powertools/commons': 2.33.0
+      '@standard-schema/spec': 1.1.0
 
   '@aws-sdk/client-secrets-manager@3.1031.0':
     dependencies:

@@ -7,6 +7,10 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand,
 } from "@aws-sdk/client-secrets-manager";
+import {
+  proxyEventToWebRequest,
+  webResponseToProxyResult,
+} from "@aws-lambda-powertools/event-handler/http";
 import { Chat, emoji } from "chat";
 import { createMemoryState } from "@chat-adapter/state-memory";
 import {
@@ -22,17 +26,19 @@ const resolveAsanaPat = async (): Promise<string> => {
   const arn = process.env.ASANA_PAT_SECRET_ARN;
   if (!arn) {
     throw new Error(
-      "Asana access token missing. Set ASANA_PAT or ASANA_PAT_SECRET_ARN.",
+      "Asana access token missing. Set ASANA_PAT or ASANA_PAT_SECRET_ARN."
     );
   }
   const response = await secretsManager.send(
-    new GetSecretValueCommand({ SecretId: arn }),
+    new GetSecretValueCommand({ SecretId: arn })
   );
   if (!response.SecretString) {
     throw new Error("ASANA_PAT_SECRET_ARN secret is empty.");
   }
   try {
-    const parsed = JSON.parse(response.SecretString) as { accessToken?: string };
+    const parsed = JSON.parse(response.SecretString) as {
+      accessToken?: string;
+    };
     if (parsed.accessToken) return parsed.accessToken;
   } catch {
     /* plain text */
@@ -72,36 +78,25 @@ chat.onNewMention(async (thread, _message) => {
 });
 
 chat.onSubscribedMessage(async (thread, message) => {
-  const lower = (message.text ?? "").toLowerCase();
-  if (
-    lower.includes("eye") ||
-    lower.includes("attach") ||
-    lower.includes("file")
-  ) {
-    await asana.addReaction(thread.id, message.id, emoji.eyes);
-    await thread.post({
-      markdown: "Here is the attachment you asked for.",
-      files: [
-        {
-          filename: "hello.txt",
-          mimeType: "text/plain",
-          data: Buffer.from(
-            `Hello from @soofi/chat-adapter-asana!\nTime: ${new Date().toISOString()}\n`,
-            "utf8",
-          ),
-        },
-      ],
-    });
-    return;
-  }
+  await asana.addReaction(thread.id, message.id, emoji.eyes);
   await thread.post({
     markdown: `Got your message: "${message.text ?? ""}"`,
+    files: [
+      {
+        filename: "hello.txt",
+        mimeType: "text/plain",
+        data: Buffer.from(
+          `Hello from @soofi/chat-adapter-asana!\nTime: ${new Date().toISOString()}\n`,
+          "utf8"
+        ),
+      },
+    ],
   });
 });
 
 chat.onReaction([emoji.check], async (event) => {
   if (!event.added) return;
-  const who = event.user.fullName ?? event.user.userName ?? "someone";
+  const who = event.user.userName;
   await event.thread.post({
     markdown: `Acknowledged: task completed by ${who}.`,
   });
@@ -109,66 +104,22 @@ chat.onReaction([emoji.check], async (event) => {
 
 export const handler = async (
   event: APIGatewayProxyEventV2,
-  _context: Context,
+  _context: Context
 ): Promise<APIGatewayProxyStructuredResultV2> => {
-  const request = toRequest(event);
+  const request = proxyEventToWebRequest(event);
   const pending: Array<Promise<unknown>> = [];
   const response = await chat.webhooks.asana(request, {
     waitUntil: (task) => {
       pending.push(
         task.catch((err) => {
           console.error("[handler] pending task failed", err);
-        }),
+        })
       );
     },
   });
-  const result = await toApiGatewayResult(response);
+  const result = await webResponseToProxyResult(response, "ApiGatewayV2");
   if (pending.length > 0) {
     await Promise.all(pending);
   }
   return result;
-};
-
-const toRequest = (event: APIGatewayProxyEventV2): Request => {
-  const method = event.requestContext.http.method;
-  const host =
-    event.headers["host"] ??
-    event.headers["Host"] ??
-    event.requestContext.domainName;
-  const rawPath = event.rawPath || "/";
-  const query = event.rawQueryString ? `?${event.rawQueryString}` : "";
-  const url = `https://${host}${rawPath}${query}`;
-
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(event.headers ?? {})) {
-    if (typeof value === "string") headers.set(key, value);
-  }
-
-  let body: BodyInit | undefined;
-  if (event.body && method !== "GET" && method !== "HEAD") {
-    body = event.isBase64Encoded
-      ? new Uint8Array(Buffer.from(event.body, "base64"))
-      : event.body;
-  }
-
-  return new Request(url, {
-    method,
-    headers,
-    body,
-  });
-};
-
-const toApiGatewayResult = async (
-  response: Response,
-): Promise<APIGatewayProxyStructuredResultV2> => {
-  const headers: Record<string, string> = {};
-  response.headers.forEach((value, key) => {
-    headers[key] = value;
-  });
-  const bodyText = await response.text();
-  return {
-    statusCode: response.status,
-    headers,
-    body: bodyText,
-  };
 };

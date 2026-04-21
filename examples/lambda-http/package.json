@@ -14,10 +14,11 @@
     "clean": "rm -rf dist cdk.out"
   },
   "dependencies": {
-    "@soofi/chat-adapter-asana": "workspace:*",
-    "@soofi/chat-adapter-asana-cdk": "workspace:*",
+    "@aws-lambda-powertools/event-handler": "^2.33.0",
     "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@chat-adapter/state-memory": "^4.26.0",
+    "@soofi/chat-adapter-asana": "workspace:*",
+    "@soofi/chat-adapter-asana-cdk": "workspace:*",
     "chat": "^4.26.0"
   },
   "devDependencies": {

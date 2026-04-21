@@ -175,7 +175,7 @@ export class AsanaChatWebhook extends Construct {
     const webhookUrl = `${httpApi.apiEndpoint}${webhookPath}`;
 
     const providerLambda = new LambdaFunction(this, "ProviderHandler", {
-      runtime: Runtime.NODEJS_20_X,
+      runtime: Runtime.NODEJS_24_X,
       handler: "provider-handler.handler",
       code: Code.fromAsset(resolveProviderAssetPath()),
       timeout: Duration.seconds(60),
