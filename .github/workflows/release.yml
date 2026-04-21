@@ -50,3 +50,62 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify published packages install from npm
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+        run: |
+          set -euo pipefail
+
+          WORKDIR="$(mktemp -d)"
+          cd "$WORKDIR"
+          npm init -y > /dev/null
+
+          install_retry() {
+            local tries=0
+            until npm install --no-save --registry=https://registry.npmjs.org "$@"; do
+              tries=$((tries + 1))
+              if [ "$tries" -ge 6 ]; then
+                echo "Failed to install after $tries attempts" >&2
+                return 1
+              fi
+              echo "Install failed (registry propagation?); retrying in 10s (attempt $tries/6)..."
+              sleep 10
+            done
+          }
+
+          while read -r pkg; do
+            NAME="$(echo "$pkg" | jq -r '.name')"
+            VERSION="$(echo "$pkg" | jq -r '.version')"
+            echo "::group::Smoke test $NAME@$VERSION"
+
+            case "$NAME" in
+              "@soofi-xyz/chat-adapter-asana")
+                install_retry "chat@^4.0.0" "${NAME}@${VERSION}"
+                node -e "
+                  import('${NAME}').then(m => {
+                    const required = ['createAsanaAdapter', 'AsanaAdapter', 'AsanaFormatConverter', 'InMemoryWebhookSecretStore'];
+                    const missing = required.filter(k => !(k in m));
+                    if (missing.length) { console.error('Missing exports:', missing); process.exit(1); }
+                    console.log('OK:', required.join(', '));
+                  }).catch(err => { console.error(err); process.exit(1); });
+                "
+                ;;
+              "@soofi-xyz/chat-adapter-asana-cdk")
+                install_retry "aws-cdk-lib@^2.100.0" "constructs@^10.0.0" "${NAME}@${VERSION}"
+                node -e "
+                  import('${NAME}').then(m => {
+                    if (typeof m.AsanaChatWebhook !== 'function') { console.error('Missing AsanaChatWebhook export'); process.exit(1); }
+                    console.log('OK: AsanaChatWebhook');
+                  }).catch(err => { console.error(err); process.exit(1); });
+                "
+                ;;
+              *)
+                echo "Unknown published package: $NAME" >&2
+                exit 1
+                ;;
+            esac
+
+            echo "::endgroup::"
+          done < <(echo "$PUBLISHED_PACKAGES" | jq -c '.[]')

@@ -96,52 +96,10 @@ The construct:
 
 Pass an existing secret via `accessTokenSecret` instead of `accessToken` if you prefer to keep the PAT out of CloudFormation.
 
-## Development
+## Contributing
 
-```bash
-pnpm install
-pnpm -r --filter "./packages/*" run typecheck
-pnpm -r --filter "./packages/*" run test
-pnpm -r --filter "./packages/*" run build
-```
-
-### End-to-end test
-
-Set up credentials and environment:
-
-```bash
-export AWS_PROFILE=elephant-cursor
-export ASANA_PAT=...         # bot personal access token
-export ASANA_PAT_SENDER=...  # sender PAT (must not equal ASANA_PAT)
-export ASANA_WORKSPACE_GID=...
-```
-
-Deploy the example and then drive the flow end-to-end against a live Asana workspace:
-
-```bash
-pnpm --filter @soofi-xyz-examples/chat-adapter-asana-lambda-http run deploy
-pnpm --filter @soofi-xyz-examples/chat-adapter-asana-lambda-http run test:e2e
-```
-
-The E2E test creates a task as `ASANA_PAT_SENDER`, assigns it to the bot, then verifies:
-
-1. Bot posts a reply that mentions the sender.
-2. Sender posts a follow-up asking for a file.
-3. Bot reacts with the `eyes` emoji on the follow-up.
-4. Bot uploads a `.txt` attachment on the task.
-
-## Release process
-
-Publishing is driven by [Changesets](https://github.com/changesets/changesets):
-
-```bash
-pnpm changeset        # describe the change
-pnpm changeset version
-pnpm release          # runs `pnpm -r build && changeset publish`
-```
-
-GitHub Actions (`.github/workflows/release.yml`) opens a version PR on every push to `main` and publishes both packages to npm when the PR is merged. CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, the package build, and a CDK synth smoke test on every push and pull request.
+Local development, the end-to-end test against a live Asana workspace, the release pipeline, and the linked-versioning policy all live in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ## License
 
-MIT © soofi.xyz
+[MIT](./LICENSE) © soofi.xyz
