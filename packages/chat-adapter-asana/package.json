@@ -26,12 +26,19 @@
     "clean": "rm -rf dist coverage"
   },
   "peerDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
     "chat": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-secrets-manager": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@chat-adapter/shared": "^4.0.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "4.1.2",
     "chat": "^4.0.0",

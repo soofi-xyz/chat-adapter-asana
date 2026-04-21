@@ -10,7 +10,5 @@ export {
 } from "./webhook-secret-store";
 export {
   SecretsManagerWebhookSecretStore,
-  type SecretsManagerLike,
-  type SecretsManagerCommandFactories,
   type SecretsManagerWebhookSecretStoreOptions,
 } from "./secrets-manager-store";

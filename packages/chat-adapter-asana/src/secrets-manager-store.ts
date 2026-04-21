@@ -1,30 +1,14 @@
+import {
+  GetSecretValueCommand,
+  PutSecretValueCommand,
+  type SecretsManagerClient,
+} from "@aws-sdk/client-secrets-manager";
 import type { WebhookSecretStore } from "./webhook-secret-store";
-
-/**
- * Minimal subset of the AWS SDK v3 Secrets Manager client surface we need.
- * Consumers pass their own client instance, which keeps the adapter bundle
- * free of AWS SDK imports and avoids bundler-size overhead.
- */
-export interface SecretsManagerLike {
-  send(command: unknown): Promise<unknown>;
-}
-
-/**
- * Command factory callbacks. Consumers supply the SDK command constructors
- * so this module does not have to depend on the AWS SDK at runtime.
- */
-export interface SecretsManagerCommandFactories {
-  getSecretValue: (input: { SecretId: string }) => unknown;
-  putSecretValue: (input: {
-    SecretId: string;
-    SecretString: string;
-  }) => unknown;
-}
 
 export interface SecretsManagerWebhookSecretStoreOptions {
   readonly secretArn: string;
-  readonly client: SecretsManagerLike;
-  readonly commands: SecretsManagerCommandFactories;
+  /** Pre-configured Secrets Manager client from `@aws-sdk/client-secrets-manager`. */
+  readonly client: SecretsManagerClient;
   /**
    * Key inside the JSON-encoded SecretString that holds the webhook secret.
    *
@@ -41,9 +25,14 @@ export interface SecretsManagerWebhookSecretStoreOptions {
 
 /**
  * WebhookSecretStore implementation that reads and writes the Asana webhook
- * signing secret from an AWS Secrets Manager secret. Falls back to treating
- * the secret value as a JSON object `{ "secret": "..." }` unless
- * `plainText: true` is passed.
+ * signing secret from an AWS Secrets Manager secret.
+ *
+ * By default the SecretString is expected to be JSON of the form
+ * `{ "secret": "..." }`. Pass `plainText: true` to treat the SecretString as
+ * a raw string, or override `jsonKey` to read from a different JSON property.
+ *
+ * Requires `@aws-sdk/client-secrets-manager` to be installed in the consumer
+ * application (declared as an optional peer dependency of this package).
  *
  * @public
  */
@@ -60,12 +49,9 @@ export class SecretsManagerWebhookSecretStore implements WebhookSecretStore {
       return this.cached;
     }
     try {
-      const command = this.options.commands.getSecretValue({
-        SecretId: this.options.secretArn,
-      });
-      const response = (await this.options.client.send(command)) as {
-        SecretString?: string;
-      };
+      const response = await this.options.client.send(
+        new GetSecretValueCommand({ SecretId: this.options.secretArn }),
+      );
       const secret = this.extractSecret(response.SecretString);
       this.cached = secret;
       this.cachedAt = Date.now();
@@ -82,11 +68,12 @@ export class SecretsManagerWebhookSecretStore implements WebhookSecretStore {
     const secretString = this.options.plainText
       ? secret
       : JSON.stringify({ [this.options.jsonKey ?? "secret"]: secret });
-    const command = this.options.commands.putSecretValue({
-      SecretId: this.options.secretArn,
-      SecretString: secretString,
-    });
-    await this.options.client.send(command);
+    await this.options.client.send(
+      new PutSecretValueCommand({
+        SecretId: this.options.secretArn,
+        SecretString: secretString,
+      }),
+    );
     this.cached = secret;
     this.cachedAt = Date.now();
   }

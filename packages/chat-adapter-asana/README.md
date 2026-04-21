@@ -63,26 +63,17 @@ For production deployments pair this adapter with [`@soofi/chat-adapter-asana-cd
 The adapter needs durable storage for the secret Asana issues during the handshake. Out of the box you can use:
 
 - `InMemoryWebhookSecretStore` — tests or single-process demos.
-- `SecretsManagerWebhookSecretStore` — reads/writes an AWS Secrets Manager secret.
+- `SecretsManagerWebhookSecretStore` — reads/writes an AWS Secrets Manager secret. Requires `@aws-sdk/client-secrets-manager` (declared as an optional peer dependency) in your app.
 
 Both implement the `WebhookSecretStore` interface so you can bring your own (Redis, DynamoDB, SSM…).
 
 ```ts
-import {
-  SecretsManagerClient,
-  GetSecretValueCommand,
-  PutSecretValueCommand,
-} from "@aws-sdk/client-secrets-manager";
+import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { SecretsManagerWebhookSecretStore } from "@soofi/chat-adapter-asana";
 
-const client = new SecretsManagerClient({});
 const webhookSecretStore = new SecretsManagerWebhookSecretStore({
   secretArn: process.env.ASANA_WEBHOOK_SECRET_ARN!,
-  client,
-  commands: {
-    getSecretValue: (input) => new GetSecretValueCommand(input),
-    putSecretValue: (input) => new PutSecretValueCommand(input),
-  },
+  client: new SecretsManagerClient({}),
 });
 ```
 
