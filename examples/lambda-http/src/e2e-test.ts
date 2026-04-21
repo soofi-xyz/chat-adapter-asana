@@ -9,7 +9,7 @@
  *   - ASANA_PAT_SENDER (test user that talks to the bot)
  */
 import { setTimeout as delay } from "node:timers/promises";
-import { createAsanaClient } from "@soofi/chat-adapter-asana";
+import { createAsanaClient } from "@soofi-xyz/chat-adapter-asana";
 
 const requireEnv = (key: string): string => {
   const value = process.env[key];
@@ -86,7 +86,7 @@ const main = async (): Promise<void> => {
     assignee: bot.gid,
     name: taskName,
     notes:
-      "Hello bot, this is an end-to-end test from @soofi/chat-adapter-asana. " +
+      "Hello bot, this is an end-to-end test from @soofi-xyz/chat-adapter-asana. " +
       "Please reply when you see this.",
   })) as { gid: string; permalink_url?: string | null };
   const taskUrl =

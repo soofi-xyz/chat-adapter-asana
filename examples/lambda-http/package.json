@@ -1,8 +1,8 @@
 {
-  "name": "@soofi-examples/chat-adapter-asana-lambda-http",
+  "name": "@soofi-xyz-examples/chat-adapter-asana-lambda-http",
   "version": "0.0.0",
   "private": true,
-  "description": "End-to-end example for @soofi/chat-adapter-asana: AWS Lambda + HTTP API webhook handler provisioned via CDK.",
+  "description": "End-to-end example for @soofi-xyz/chat-adapter-asana: AWS Lambda + HTTP API webhook handler provisioned via CDK.",
   "type": "module",
   "scripts": {
     "build": "tsup",
@@ -17,8 +17,8 @@
     "@aws-lambda-powertools/event-handler": "^2.33.0",
     "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@chat-adapter/state-memory": "^4.26.0",
-    "@soofi/chat-adapter-asana": "workspace:*",
-    "@soofi/chat-adapter-asana-cdk": "workspace:*",
+    "@soofi-xyz/chat-adapter-asana": "workspace:*",
+    "@soofi-xyz/chat-adapter-asana-cdk": "workspace:*",
     "chat": "^4.26.0"
   },
   "devDependencies": {

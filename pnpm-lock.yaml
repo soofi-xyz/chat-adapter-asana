@@ -26,10 +26,10 @@ importers:
       '@chat-adapter/state-memory':
         specifier: ^4.26.0
         version: 4.26.0
-      '@soofi/chat-adapter-asana':
+      '@soofi-xyz/chat-adapter-asana':
         specifier: workspace:*
         version: link:../../packages/chat-adapter-asana
-      '@soofi/chat-adapter-asana-cdk':
+      '@soofi-xyz/chat-adapter-asana-cdk':
         specifier: workspace:*
         version: link:../../packages/chat-adapter-asana-cdk
       chat:

@@ -1,4 +1,4 @@
-# @soofi/chat-adapter-asana
+# @soofi-xyz/chat-adapter-asana
 
 [Asana](https://asana.com/) adapter for the [Chat SDK](https://chat-sdk.dev/).
 
@@ -13,7 +13,7 @@
 ## Installation
 
 ```bash
-pnpm add @soofi/chat-adapter-asana chat @chat-adapter/state-memory
+pnpm add @soofi-xyz/chat-adapter-asana chat @chat-adapter/state-memory
 ```
 
 ## Usage
@@ -21,7 +21,7 @@ pnpm add @soofi/chat-adapter-asana chat @chat-adapter/state-memory
 ```ts
 import { Chat, emoji } from "chat";
 import { createMemoryState } from "@chat-adapter/state-memory";
-import { createAsanaAdapter } from "@soofi/chat-adapter-asana";
+import { createAsanaAdapter } from "@soofi-xyz/chat-adapter-asana";
 
 const asana = createAsanaAdapter({
   accessToken: process.env.ASANA_PAT!,
@@ -56,7 +56,7 @@ chat.onReaction([emoji.check], async (event) => {
 
 Wire the webhook up to your HTTP framework of choice via `chat.webhooks.asana(request)`.
 
-For production deployments pair this adapter with [`@soofi/chat-adapter-asana-cdk`](https://www.npmjs.com/package/@soofi/chat-adapter-asana-cdk) to provision the HTTP endpoint and the Asana webhook registration in AWS.
+For production deployments pair this adapter with [`@soofi-xyz/chat-adapter-asana-cdk`](https://www.npmjs.com/package/@soofi-xyz/chat-adapter-asana-cdk) to provision the HTTP endpoint and the Asana webhook registration in AWS.
 
 ### Storing the webhook signing secret
 
@@ -69,7 +69,7 @@ Both implement the `WebhookSecretStore` interface so you can bring your own (Red
 
 ```ts
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { SecretsManagerWebhookSecretStore } from "@soofi/chat-adapter-asana";
+import { SecretsManagerWebhookSecretStore } from "@soofi-xyz/chat-adapter-asana";
 
 const webhookSecretStore = new SecretsManagerWebhookSecretStore({
   secretArn: process.env.ASANA_WEBHOOK_SECRET_ARN!,

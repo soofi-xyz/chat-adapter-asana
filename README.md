@@ -6,8 +6,8 @@ The repository is a pnpm workspace that publishes two packages to npm and ships 
 
 | Package | What it does | npm |
 | --- | --- | --- |
-| [`@soofi/chat-adapter-asana`](./packages/chat-adapter-asana) | Chat SDK `Adapter` for Asana. Tasks become threads, comments become messages, task completion is delivered as a native `chat.onReaction` event, and emoji reactions + file attachments are supported. | `@soofi/chat-adapter-asana` |
-| [`@soofi/chat-adapter-asana-cdk`](./packages/chat-adapter-asana-cdk) | AWS CDK construct that wires an HTTP API, a Secrets Manager secret, and a custom resource that registers the Asana webhook on the bot's "My tasks" user task list. | `@soofi/chat-adapter-asana-cdk` |
+| [`@soofi-xyz/chat-adapter-asana`](./packages/chat-adapter-asana) | Chat SDK `Adapter` for Asana. Tasks become threads, comments become messages, task completion is delivered as a native `chat.onReaction` event, and emoji reactions + file attachments are supported. | `@soofi-xyz/chat-adapter-asana` |
+| [`@soofi-xyz/chat-adapter-asana-cdk`](./packages/chat-adapter-asana-cdk) | AWS CDK construct that wires an HTTP API, a Secrets Manager secret, and a custom resource that registers the Asana webhook on the bot's "My tasks" user task list. | `@soofi-xyz/chat-adapter-asana-cdk` |
 | [`examples/lambda-http`](./examples/lambda-http) | AWS Lambda + HTTP API reference stack plus an end-to-end test that drives a real Asana workspace. Not published to npm. | — |
 
 ## Behaviour contract
@@ -30,8 +30,8 @@ Additional capabilities:
 ### 1. Install the packages
 
 ```bash
-pnpm add @soofi/chat-adapter-asana chat @chat-adapter/state-memory
-pnpm add -D @soofi/chat-adapter-asana-cdk aws-cdk-lib constructs
+pnpm add @soofi-xyz/chat-adapter-asana chat @chat-adapter/state-memory
+pnpm add -D @soofi-xyz/chat-adapter-asana-cdk aws-cdk-lib constructs
 ```
 
 ### 2. Build the Chat instance
@@ -39,7 +39,7 @@ pnpm add -D @soofi/chat-adapter-asana-cdk aws-cdk-lib constructs
 ```ts
 import { Chat, emoji } from "chat";
 import { createMemoryState } from "@chat-adapter/state-memory";
-import { createAsanaAdapter } from "@soofi/chat-adapter-asana";
+import { createAsanaAdapter } from "@soofi-xyz/chat-adapter-asana";
 
 const asana = createAsanaAdapter({
   accessToken: process.env.ASANA_PAT!,
@@ -73,7 +73,7 @@ chat.onReaction([emoji.check], async (event) => {
 
 ```ts
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
-import { AsanaChatWebhook } from "@soofi/chat-adapter-asana-cdk";
+import { AsanaChatWebhook } from "@soofi-xyz/chat-adapter-asana-cdk";
 
 const handler = new NodejsFunction(this, "WebhookHandler", {
   entry: "src/handler.ts",
@@ -117,8 +117,8 @@ export ASANA_WORKSPACE_GID=...
 Deploy the example and then drive the flow end-to-end against a live Asana workspace:
 
 ```bash
-pnpm --filter @soofi-examples/chat-adapter-asana-lambda-http run deploy
-pnpm --filter @soofi-examples/chat-adapter-asana-lambda-http run test:e2e
+pnpm --filter @soofi-xyz-examples/chat-adapter-asana-lambda-http run deploy
+pnpm --filter @soofi-xyz-examples/chat-adapter-asana-lambda-http run test:e2e
 ```
 
 The E2E test creates a task as `ASANA_PAT_SENDER`, assigns it to the bot, then verifies:

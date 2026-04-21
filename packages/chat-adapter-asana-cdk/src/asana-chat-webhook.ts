@@ -33,7 +33,7 @@ export interface AsanaChatWebhookProps {
    * shared webhook signing secret (in Secrets Manager).
    *
    * The function body is expected to use `AsanaAdapter` from
-   * `@soofi/chat-adapter-asana`, which reads the webhook secret from
+   * `@soofi-xyz/chat-adapter-asana`, which reads the webhook secret from
    * Secrets Manager via the environment variable `ASANA_WEBHOOK_SECRET_ARN`.
    */
   readonly handler: LambdaFunction;
@@ -239,8 +239,8 @@ const resolveProviderAssetPath = (): string => {
     }
   }
   throw new Error(
-    "Unable to locate @soofi/chat-adapter-asana-cdk provider bundle (dist/provider/provider-handler.js). " +
-      "Run `pnpm --filter @soofi/chat-adapter-asana-cdk build` before synth.",
+    "Unable to locate @soofi-xyz/chat-adapter-asana-cdk provider bundle (dist/provider/provider-handler.js). " +
+      "Run `pnpm --filter @soofi-xyz/chat-adapter-asana-cdk build` before synth.",
   );
 };
 

@@ -13,7 +13,7 @@ import {
   Runtime,
 } from "aws-cdk-lib/aws-lambda";
 import { RetentionDays } from "aws-cdk-lib/aws-logs";
-import { AsanaChatWebhook } from "@soofi/chat-adapter-asana-cdk";
+import { AsanaChatWebhook } from "@soofi-xyz/chat-adapter-asana-cdk";
 
 export interface AsanaChatExampleStackProps extends StackProps {
   readonly accessToken: string;
@@ -23,8 +23,8 @@ export interface AsanaChatExampleStackProps extends StackProps {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * Example stack that wires @soofi/chat-adapter-asana-cdk up with a Lambda
- * handler that uses @soofi/chat-adapter-asana to process Asana webhook
+ * Example stack that wires @soofi-xyz/chat-adapter-asana-cdk up with a Lambda
+ * handler that uses @soofi-xyz/chat-adapter-asana to process Asana webhook
  * events.
  */
 export class AsanaChatExampleStack extends Stack {

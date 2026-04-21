@@ -31,7 +31,7 @@ jobs:
       - name: Test
         run: pnpm -r --filter "./packages/*" run test
       - name: Typecheck example
-        run: pnpm --filter "@soofi-examples/chat-adapter-asana-lambda-http" run typecheck
+        run: pnpm --filter "@soofi-xyz-examples/chat-adapter-asana-lambda-http" run typecheck
       - name: Synth example CDK stack (smoke test)
         env:
           ASANA_PAT: dummy
@@ -39,6 +39,6 @@ jobs:
           CDK_DEFAULT_ACCOUNT: "111111111111"
           CDK_DEFAULT_REGION: us-east-1
         run: |
-          pnpm --filter "@soofi-examples/chat-adapter-asana-lambda-http" run build
+          pnpm --filter "@soofi-xyz-examples/chat-adapter-asana-lambda-http" run build
           cd examples/lambda-http
           pnpm exec cdk synth --no-lookups > /dev/null

@@ -16,7 +16,7 @@ import { createMemoryState } from "@chat-adapter/state-memory";
 import {
   createAsanaAdapter,
   SecretsManagerWebhookSecretStore,
-} from "@soofi/chat-adapter-asana";
+} from "@soofi-xyz/chat-adapter-asana";
 
 const secretsManager = new SecretsManagerClient({});
 
@@ -86,7 +86,7 @@ chat.onSubscribedMessage(async (thread, message) => {
         filename: "hello.txt",
         mimeType: "text/plain",
         data: Buffer.from(
-          `Hello from @soofi/chat-adapter-asana!\nTime: ${new Date().toISOString()}\n`,
+          `Hello from @soofi-xyz/chat-adapter-asana!\nTime: ${new Date().toISOString()}\n`,
           "utf8"
         ),
       },

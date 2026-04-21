@@ -1,22 +1,22 @@
-# @soofi/chat-adapter-asana-cdk
+# @soofi-xyz/chat-adapter-asana-cdk
 
 AWS CDK construct that provisions:
 
 1. An HTTP API route that forwards Asana webhook deliveries to a Lambda you provide.
-2. A Secrets Manager secret that stores the signing key Asana issues during the handshake. The companion adapter ([`@soofi/chat-adapter-asana`](https://www.npmjs.com/package/@soofi/chat-adapter-asana)) reads and writes this secret via the `ASANA_WEBHOOK_SECRET_ARN` env var.
+2. A Secrets Manager secret that stores the signing key Asana issues during the handshake. The companion adapter ([`@soofi-xyz/chat-adapter-asana`](https://www.npmjs.com/package/@soofi-xyz/chat-adapter-asana)) reads and writes this secret via the `ASANA_WEBHOOK_SECRET_ARN` env var.
 3. A custom resource that resolves the bot's "My tasks" user-task-list GID and registers the Asana webhook against it. On stack deletion the webhook is deregistered.
 
 ## Installation
 
 ```bash
-pnpm add -D @soofi/chat-adapter-asana-cdk aws-cdk-lib constructs
+pnpm add -D @soofi-xyz/chat-adapter-asana-cdk aws-cdk-lib constructs
 ```
 
 ## Usage
 
 ```ts
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
-import { AsanaChatWebhook } from "@soofi/chat-adapter-asana-cdk";
+import { AsanaChatWebhook } from "@soofi-xyz/chat-adapter-asana-cdk";
 
 const handler = new NodejsFunction(this, "WebhookHandler", {
   entry: "src/handler.ts",

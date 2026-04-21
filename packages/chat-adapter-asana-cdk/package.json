@@ -1,7 +1,7 @@
 {
-  "name": "@soofi/chat-adapter-asana-cdk",
+  "name": "@soofi-xyz/chat-adapter-asana-cdk",
   "version": "0.1.0",
-  "description": "AWS CDK construct that provisions an HTTP API endpoint and registers an Asana webhook against the bot's My Tasks user task list. Companion to @soofi/chat-adapter-asana.",
+  "description": "AWS CDK construct that provisions an HTTP API endpoint and registers an Asana webhook against the bot's My Tasks user task list. Companion to @soofi-xyz/chat-adapter-asana.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

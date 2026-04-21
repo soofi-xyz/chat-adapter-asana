@@ -23,10 +23,10 @@ export ASANA_WORKSPACE_GID=...
 
 ```bash
 pnpm install
-pnpm --filter @soofi-examples/chat-adapter-asana-lambda-http run deploy
+pnpm --filter @soofi-xyz-examples/chat-adapter-asana-lambda-http run deploy
 ```
 
-This synthesises and deploys the `AsanaChatAdapterExample` stack, which uses `@soofi/chat-adapter-asana-cdk` to create the webhook + register it in Asana. The stack outputs:
+This synthesises and deploys the `AsanaChatAdapterExample` stack, which uses `@soofi-xyz/chat-adapter-asana-cdk` to create the webhook + register it in Asana. The stack outputs:
 
 - `WebhookUrl` — the Lambda HTTP endpoint Asana posts to.
 - `WebhookGid` — Asana's GID for the webhook registration.
@@ -35,7 +35,7 @@ This synthesises and deploys the `AsanaChatAdapterExample` stack, which uses `@s
 ## Run the end-to-end test
 
 ```bash
-pnpm --filter @soofi-examples/chat-adapter-asana-lambda-http run test:e2e
+pnpm --filter @soofi-xyz-examples/chat-adapter-asana-lambda-http run test:e2e
 ```
 
 The test:
@@ -48,7 +48,7 @@ The test:
 ## Destroy
 
 ```bash
-pnpm --filter @soofi-examples/chat-adapter-asana-lambda-http run destroy
+pnpm --filter @soofi-xyz-examples/chat-adapter-asana-lambda-http run destroy
 ```
 
 This removes the webhook (via the custom resource `Delete`) and the AWS infrastructure.
