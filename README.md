@@ -4,11 +4,13 @@
 
 The repository is a pnpm workspace that publishes two packages to npm and ships an end-to-end example that deploys a real webhook receiver on AWS Lambda.
 
-| Package | What it does | npm |
-| --- | --- | --- |
-| [`@soofi-xyz/chat-adapter-asana`](./packages/chat-adapter-asana) | Chat SDK `Adapter` for Asana. Tasks become threads, comments become messages, task completion is delivered as a native `chat.onReaction` event, and emoji reactions + file attachments are supported. | `@soofi-xyz/chat-adapter-asana` |
-| [`@soofi-xyz/chat-adapter-asana-cdk`](./packages/chat-adapter-asana-cdk) | AWS CDK construct that wires an HTTP API, a Secrets Manager secret, and a custom resource that registers the Asana webhook on the bot's "My tasks" user task list. | `@soofi-xyz/chat-adapter-asana-cdk` |
-| [`examples/lambda-http`](./examples/lambda-http) | AWS Lambda + HTTP API reference stack plus an end-to-end test that drives a real Asana workspace. Not published to npm. | — |
+
+| Package                                                                  | What it does                                                                                                                                                                                          | npm                                 |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `[@soofi-xyz/chat-adapter-asana](./packages/chat-adapter-asana)`         | Chat SDK `Adapter` for Asana. Tasks become threads, comments become messages, task completion is delivered as a native `chat.onReaction` event, and emoji reactions + file attachments are supported. | `@soofi-xyz/chat-adapter-asana`     |
+| `[@soofi-xyz/chat-adapter-asana-cdk](./packages/chat-adapter-asana-cdk)` | AWS CDK construct that wires an HTTP API, a Secrets Manager secret, and a custom resource that registers the Asana webhook on the bot's "My tasks" user task list.                                    | `@soofi-xyz/chat-adapter-asana-cdk` |
+| `[examples/lambda-http](./examples/lambda-http)`                         | AWS Lambda + HTTP API reference stack plus an end-to-end test that drives a real Asana workspace. Not published to npm.                                                                               | —                                   |
+
 
 ## Behaviour contract
 
