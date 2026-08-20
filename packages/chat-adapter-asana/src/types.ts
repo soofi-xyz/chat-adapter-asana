@@ -34,6 +34,14 @@ export interface AsanaAdapterConfig {
   };
   /** Override bot display name used in @-mentions. Defaults to `botUser.name` or "asana-bot". */
   userName?: string;
+  /**
+   * When `true`, comment stories set `message.isMention` if `html_text`
+   * contains a `data-asana-gid` attribute matching the bot's user GID.
+   * Defaults to `false` so existing consumers keep today's routing
+   * (`onNewMention` only for task assignments). Match the GID attribute,
+   * not the profile URL — Asana's mention URL can carry a different id.
+   */
+  detectMentionsInComments?: boolean;
   /** Logger injected by the Chat instance. */
   logger?: Logger;
 }

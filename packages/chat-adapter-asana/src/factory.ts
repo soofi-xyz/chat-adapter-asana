@@ -47,6 +47,7 @@ export const createAsanaAdapter = (config: FactoryConfig = {}): AsanaAdapter => 
     fetch: config.fetch,
     botUser: config.botUser,
     userName: config.userName,
+    detectMentionsInComments: config.detectMentionsInComments,
     logger: config.logger,
     webhookSecretStore: config.webhookSecretStore,
   };

@@ -92,6 +92,105 @@ describe("AsanaAdapter.parseMessage", () => {
     expect(message.metadata.edited).toBe(false);
   });
 
+  test("leaves comments as non-mentions when detectMentionsInComments is off", () => {
+    const withMentionsOff = new AsanaAdapter({
+      accessToken: "token",
+      workspaceGid: "ws_1",
+      botUser: TEST_BOT_USER,
+      detectMentionsInComments: false,
+      fetch: () =>
+        Promise.reject(new Error("fetch should not be called")) as never,
+    });
+
+    const message = withMentionsOff.parseMessage(
+      storyRaw({
+        html_text: `<body><a data-asana-gid="${TEST_BOT_USER.gid}"/> ping</body>`,
+      }),
+    );
+
+    expect(message.isMention).toBeFalsy();
+  });
+
+  test("sets isMention when detectMentionsInComments finds the bot gid", () => {
+    const withMentionsOn = new AsanaAdapter({
+      accessToken: "token",
+      workspaceGid: "ws_1",
+      botUser: TEST_BOT_USER,
+      detectMentionsInComments: true,
+      fetch: () =>
+        Promise.reject(new Error("fetch should not be called")) as never,
+    });
+
+    const message = withMentionsOn.parseMessage(
+      storyRaw({
+        html_text: `<body>Hey <a data-asana-gid="${TEST_BOT_USER.gid}" data-asana-type="user" href="https://app.asana.com/0/profile/other_id"/> </body>`,
+      }),
+    );
+
+    expect(message.isMention).toBe(true);
+  });
+
+  test("does not treat a different user's mention as the bot", () => {
+    const withMentionsOn = new AsanaAdapter({
+      accessToken: "token",
+      workspaceGid: "ws_1",
+      botUser: TEST_BOT_USER,
+      detectMentionsInComments: true,
+      fetch: () =>
+        Promise.reject(new Error("fetch should not be called")) as never,
+    });
+
+    const message = withMentionsOn.parseMessage(
+      storyRaw({
+        html_text:
+          '<body><a data-asana-gid="user_alice" href="https://app.asana.com/0/profile/bot_1"/> hi</body>',
+      }),
+    );
+
+    expect(message.isMention).toBeFalsy();
+  });
+
+  test("tolerates missing or malformed html_text when detecting mentions", () => {
+    const withMentionsOn = new AsanaAdapter({
+      accessToken: "token",
+      workspaceGid: "ws_1",
+      botUser: TEST_BOT_USER,
+      detectMentionsInComments: true,
+      fetch: () =>
+        Promise.reject(new Error("fetch should not be called")) as never,
+    });
+
+    expect(
+      withMentionsOn.parseMessage(storyRaw({ html_text: undefined })).isMention,
+    ).toBeFalsy();
+    expect(
+      withMentionsOn.parseMessage(storyRaw({ html_text: null })).isMention,
+    ).toBeFalsy();
+    expect(
+      withMentionsOn.parseMessage(storyRaw({ html_text: "" })).isMention,
+    ).toBeFalsy();
+  });
+
+  test("leaves isMention false when botUserId is unresolved", () => {
+    const unresolvedBot = new AsanaAdapter({
+      accessToken: "token",
+      workspaceGid: "ws_1",
+      detectMentionsInComments: true,
+      fetch: () =>
+        Promise.reject(new Error("fetch should not be called")) as never,
+    });
+
+    expect(unresolvedBot.botUserId).toBeUndefined();
+
+    const message = unresolvedBot.parseMessage(
+      storyRaw({
+        html_text: `<body><a data-asana-gid="${TEST_BOT_USER.gid}"/> ping</body>`,
+      }),
+    );
+
+    expect(message.isMention).toBeFalsy();
+  });
+
   test("propagates the `is_edited` flag to message metadata", () => {
     const message = adapter.parseMessage(storyRaw({ is_edited: true }));
     expect(message.metadata.edited).toBe(true);

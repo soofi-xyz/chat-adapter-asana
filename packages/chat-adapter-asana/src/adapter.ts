@@ -102,6 +102,7 @@ export class AsanaAdapter
 
   private chat: ChatInstance | null = null;
   private logger: Logger;
+  private readonly detectMentionsInComments: boolean;
   private readonly converter = new AsanaFormatConverter();
   private readonly emojiResolver = new EmojiResolver();
   /**
@@ -136,6 +137,7 @@ export class AsanaAdapter
     });
     this.workspaceGid = config.workspaceGid;
     this.logger = config.logger ?? new ConsoleLogger();
+    this.detectMentionsInComments = config.detectMentionsInComments ?? false;
     this.botUser = config.botUser ?? null;
     if (this.botUser) {
       this.botUserId = this.botUser.gid;
@@ -476,7 +478,7 @@ export class AsanaAdapter
     const text = story.text ?? "";
     const author = this.authorFromUser(story.created_by, taskGid);
 
-    return new Message<AsanaRawMessage>({
+    const message = new Message<AsanaRawMessage>({
       id: story.gid,
       threadId,
       text,
@@ -494,6 +496,19 @@ export class AsanaAdapter
       },
       attachments: [],
     });
+
+    // Opt-in: match the bot's user GID on `data-asana-gid`, not the profile
+    // URL — Asana mention hrefs can carry a different id than the user GID.
+    if (
+      this.detectMentionsInComments &&
+      this.botUserId &&
+      typeof story.html_text === "string" &&
+      story.html_text.includes(`data-asana-gid="${this.botUserId}"`)
+    ) {
+      message.isMention = true;
+    }
+
+    return message;
   }
 
   private authorFromUser(
