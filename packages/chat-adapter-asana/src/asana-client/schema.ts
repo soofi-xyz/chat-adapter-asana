@@ -172,6 +172,7 @@ export const userSchema = object({
   resource_type: scalar<"user">(),
   name: scalar<string>(),
   email: scalar<string>(),
+  workspaces: arrayOf(workspaceSchema),
 });
 
 export const projectSchema = object({
@@ -253,11 +254,17 @@ export const attachmentSchema = object({
   host: nullable(scalar<string>()),
 });
 
+export const webhookResourceSchema = object({
+  gid: scalar<string>(),
+  resource_type: scalar<string>(),
+});
+
 export const webhookSchema = object({
   gid: scalar<string>(),
   resource_type: scalar<"webhook">(),
   active: scalar<boolean>(),
   target: scalar<string>(),
+  resource: webhookResourceSchema,
 });
 
 export type AsanaUser = InferNode<typeof userSchema>;

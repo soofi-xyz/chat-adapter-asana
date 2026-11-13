@@ -68,6 +68,42 @@ describe("AsanaChatWebhook", () => {
     template.resourceCountIs("AWS::SecretsManager::Secret", 2);
   });
 
+  test("uses an existing webhook URL and skips deploy-time registration", () => {
+    const { stack, handler } = buildStack();
+    const webhook = new AsanaChatWebhook(stack, "Webhook", {
+      handler,
+      webhookUrl: "https://api.example.com/prod/enact/channels/asana",
+      registerWebhook: false,
+    });
+
+    const template = Template.fromStack(stack);
+    template.resourceCountIs("AWS::ApiGatewayV2::Api", 0);
+    template.resourceCountIs("Custom::AsanaWebhook", 0);
+    // Only the caller's handler: no provider or framework Lambdas.
+    template.resourceCountIs("AWS::Lambda::Function", 1);
+    // Only the webhook signing secret: no token secret without a token.
+    template.resourceCountIs("AWS::SecretsManager::Secret", 1);
+    expect(() => webhook.httpApi).toThrow(/webhookUrl/);
+    expect(() => webhook.webhookGid).toThrow(/registerWebhook/);
+    expect(webhook.webhookUrl).toBe(
+      "https://api.example.com/prod/enact/channels/asana",
+    );
+    const env = template.findResources("AWS::Lambda::Function");
+    const variables = Object.values(env)[0]?.Properties.Environment.Variables;
+    expect(Object.keys(variables)).toEqual(["ASANA_WEBHOOK_SECRET_ARN"]);
+  });
+
+  test("requires workspaceGid while registering at deploy time", () => {
+    const { stack, handler } = buildStack();
+    expect(
+      () =>
+        new AsanaChatWebhook(stack, "Webhook", {
+          handler,
+          accessToken: "pat-test",
+        }),
+    ).toThrow(/workspaceGid/);
+  });
+
   test("throws when neither token nor secret provided", () => {
     const { stack, handler } = buildStack();
     expect(() =>

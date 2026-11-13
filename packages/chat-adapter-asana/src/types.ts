@@ -18,8 +18,13 @@ export interface AsanaClientConfig {
 export interface AsanaAdapterConfig {
   /** Personal access token for the bot. */
   accessToken: string;
-  /** Asana workspace GID. */
-  workspaceGid: string;
+  /**
+   * Asana workspace GID. Optional: without it the adapter serves every
+   * workspace its webhooks deliver from and takes the workspace from each
+   * delivery's target URL (see `asanaWebhookTarget`). With it, every thread
+   * is in the channel `asana:<workspaceGid>`, as before.
+   */
+  workspaceGid?: string;
   /** Webhook signing secret (returned from Asana during handshake). */
   webhookSecret?: string;
   /** Override base URL for tests or Asana enterprise domains. */
@@ -61,6 +66,12 @@ export interface AsanaRawMessage {
   taskGid: string;
   /** Story GID for comments; equals task GID for the description. */
   storyGid?: string;
+  /**
+   * Workspace the message belongs to, when known: the task's workspace for
+   * the description, and the delivery's workspace (or the configured one)
+   * for comments.
+   */
+  workspaceGid?: string;
   /** Original Asana payload (task or story) when available. */
   payload?: unknown;
 }

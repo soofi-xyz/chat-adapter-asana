@@ -52,8 +52,10 @@ import { AsanaFormatConverter } from "./format-converter";
 import type { AsanaAdapterConfig, AsanaRawMessage, AsanaThreadId } from "./types";
 import {
   InMemoryWebhookSecretStore,
+  PENDING_HANDSHAKE,
   type WebhookSecretStore,
 } from "./webhook-secret-store";
+import { workspaceFromWebhookUrl } from "./webhook-target";
 
 const ADAPTER_NAME = "asana";
 
@@ -97,7 +99,11 @@ export class AsanaAdapter
   botUserId: string | undefined;
 
   readonly client: AsanaClient;
-  readonly workspaceGid: string;
+  /**
+   * Workspace from the config, if any. When unset the adapter serves every
+   * workspace the bot's webhooks deliver from.
+   */
+  readonly workspaceGid: string | undefined;
   readonly webhookSecretStore: WebhookSecretStore;
 
   private chat: ChatInstance | null = null;
@@ -123,13 +129,6 @@ export class AsanaAdapter
         "AsanaAdapter requires an accessToken (ASANA_PAT).",
       );
     }
-    if (!config.workspaceGid) {
-      throw new ValidationError(
-        ADAPTER_NAME,
-        "AsanaAdapter requires a workspaceGid (ASANA_WORKSPACE_GID).",
-      );
-    }
-
     this.client = createAsanaClient({
       accessToken: config.accessToken,
       baseUrl: config.baseUrl,
@@ -179,20 +178,41 @@ export class AsanaAdapter
     return { taskGid };
   }
 
-  channelIdFromThreadId(_threadId: string): string {
-    return `${ADAPTER_NAME}:${this.workspaceGid}`;
+  /**
+   * With a configured `workspaceGid` every thread is in the channel
+   * `asana:<workspaceGid>`. Without one, each task is its own channel: thread
+   * IDs carry only the task GID, so the adapter cannot tell a thread's
+   * workspace without an API call.
+   */
+  channelIdFromThreadId(threadId: string): string {
+    return this.workspaceGid ? `${ADAPTER_NAME}:${this.workspaceGid}` : threadId;
   }
 
   async handleWebhook(
     request: Request,
     options?: WebhookOptions,
   ): Promise<Response> {
+    // A keyed target URL (`?workspace=<gid>`) names the webhook, and so the
+    // secret, this delivery belongs to. Without it the single unkeyed secret
+    // is used, as before.
+    const webhookKey = workspaceFromWebhookUrl(request.url);
     const handshakeSecret = request.headers.get("x-hook-secret");
     if (handshakeSecret) {
       this.logger.info("Received Asana webhook handshake", {
         fingerprint: handshakeSecret.slice(0, 8),
+        workspaceGid: webhookKey,
       });
-      await this.webhookSecretStore.set(handshakeSecret);
+      if (
+        webhookKey !== undefined &&
+        (await this.webhookSecretStore.get(webhookKey)) !== PENDING_HANDSHAKE
+      ) {
+        this.logger.warn(
+          "Rejecting handshake for a workspace with no registration in progress",
+          { workspaceGid: webhookKey },
+        );
+        return new Response("Unexpected handshake", { status: 403 });
+      }
+      await this.webhookSecretStore.set(handshakeSecret, webhookKey);
       return new Response("", {
         status: 200,
         headers: { "X-Hook-Secret": handshakeSecret },
@@ -201,7 +221,8 @@ export class AsanaAdapter
 
     const body = await request.text();
     const signature = request.headers.get("x-hook-signature");
-    const storedSecret = await this.webhookSecretStore.get();
+    const stored = await this.webhookSecretStore.get(webhookKey);
+    const storedSecret = stored === PENDING_HANDSHAKE ? null : stored;
 
     if (storedSecret) {
       if (!signature) {
@@ -215,6 +236,20 @@ export class AsanaAdapter
           "Invalid Asana webhook signature.",
         );
       }
+    } else if (webhookKey !== undefined && stored === PENDING_HANDSHAKE) {
+      this.logger.warn("Webhook registration still in progress; rejecting", {
+        workspaceGid: webhookKey,
+      });
+      return new Response("Registration in progress", { status: 401 });
+    } else if (webhookKey !== undefined) {
+      // No secret for this workspace: reconcile removed it because the bot
+      // left the workspace, or never registered it. 410 tells Asana to
+      // delete the webhook, which reconcile may not be able to do itself
+      // once the bot has lost access to the workspace.
+      this.logger.warn("No webhook secret stored for workspace; answering 410", {
+        workspaceGid: webhookKey,
+      });
+      return new Response("Unknown webhook", { status: 410 });
     } else {
       this.logger.warn(
         "No webhook secret stored; cannot verify signature. Skipping verification (handshake likely in progress).",
@@ -233,13 +268,17 @@ export class AsanaAdapter
     this.logger.debug(`Received ${events.length} Asana webhook event(s)`);
 
     for (const event of events) {
-      this.dispatchEvent(event, options);
+      this.dispatchEvent(event, options, webhookKey ?? this.workspaceGid);
     }
 
     return new Response("OK", { status: 200 });
   }
 
-  private dispatchEvent(event: AsanaWebhookEvent, options?: WebhookOptions): void {
+  private dispatchEvent(
+    event: AsanaWebhookEvent,
+    options: WebhookOptions | undefined,
+    workspaceGid: string | undefined,
+  ): void {
     if (!this.chat) {
       this.logger.warn("Event received before adapter initialization; dropping");
       return;
@@ -280,7 +319,7 @@ export class AsanaAdapter
       action === "added" &&
       event.parent?.resource_type === "task"
     ) {
-      this.handleStoryAdded(event, options);
+      this.handleStoryAdded(event, options, workspaceGid);
       return;
     }
 
@@ -400,7 +439,8 @@ export class AsanaAdapter
 
   private handleStoryAdded(
     event: AsanaWebhookEvent,
-    options?: WebhookOptions,
+    options: WebhookOptions | undefined,
+    workspaceGid: string | undefined,
   ): void {
     const storyGid = event.resource.gid;
     const taskGid = event.parent?.gid;
@@ -428,7 +468,7 @@ export class AsanaAdapter
         );
       }
       this.rememberRecentCommenter(threadId, story.created_by?.gid);
-      return this.storyToMessage(story, taskGid);
+      return this.storyToMessage(story, taskGid, workspaceGid);
     };
 
     chat.processMessage(this, threadId, wrapFactory(factory, this.logger), options);
@@ -440,7 +480,7 @@ export class AsanaAdapter
       return this.taskToDescriptionMessage(task);
     }
     const story = raw.payload as StoryForAdapter;
-    return this.storyToMessage(story, raw.taskGid);
+    return this.storyToMessage(story, raw.taskGid, raw.workspaceGid);
   }
 
   private taskToDescriptionMessage(task: TaskForAdapter): Message<AsanaRawMessage> {
@@ -457,6 +497,7 @@ export class AsanaAdapter
       raw: {
         kind: "task_description",
         taskGid: task.gid,
+        ...(task.workspace?.gid ? { workspaceGid: task.workspace.gid } : {}),
         payload: task,
       },
       author,
@@ -473,6 +514,7 @@ export class AsanaAdapter
   private storyToMessage(
     story: StoryForAdapter,
     taskGid: string,
+    workspaceGid: string | undefined = this.workspaceGid,
   ): Message<AsanaRawMessage> {
     const threadId = this.encodeThreadId({ taskGid });
     const text = story.text ?? "";
@@ -487,6 +529,7 @@ export class AsanaAdapter
         kind: "comment",
         taskGid,
         storyGid: story.gid,
+        ...(workspaceGid ? { workspaceGid } : {}),
         payload: story,
       },
       author,

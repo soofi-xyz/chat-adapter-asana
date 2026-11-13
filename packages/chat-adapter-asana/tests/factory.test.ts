@@ -100,10 +100,11 @@ describe("createAsanaAdapter", () => {
     );
   });
 
-  test("throws when no workspace GID is available", () => {
-    expect(() => createAsanaAdapter({ accessToken: "token" })).toThrow(
-      /workspace/i,
-    );
+  test("creates a multi-workspace adapter when no workspace GID is configured", () => {
+    const adapter = createAsanaAdapter({ accessToken: "token" });
+
+    expect(adapter.workspaceGid).toBeUndefined();
+    expect(adapter.channelIdFromThreadId("asana:dGFza18x")).toBe("asana:dGFza18x");
   });
 
   test("throws with an empty config object if nothing is configured via env", () => {

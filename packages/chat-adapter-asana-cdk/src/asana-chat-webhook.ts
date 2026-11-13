@@ -20,9 +20,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /**
  * Properties for the {@link AsanaChatWebhook} construct.
  *
- * The construct provisions an HTTP API endpoint that forwards Asana webhook
- * POST requests to the supplied `handler` Lambda, and registers a webhook in
- * Asana so events on the bot's "My tasks" user task list are delivered to it.
+ * By default the construct provisions an HTTP API endpoint that forwards
+ * Asana webhook POST requests to the supplied `handler` Lambda, and registers
+ * a webhook in Asana so events on the bot's "My tasks" user task list are
+ * delivered to it. Pass `webhookUrl` to serve the handler from your own API
+ * instead, and `registerWebhook: false` to register webhooks at runtime with
+ * `reconcileAsanaWebhooks` from `@soofi-xyz/chat-adapter-asana`.
  *
  * @public
  */
@@ -39,8 +42,9 @@ export interface AsanaChatWebhookProps {
   readonly handler: LambdaFunction;
 
   /**
-   * The Asana personal access token of the bot account. Either `accessToken`
-   * or `accessTokenSecret` must be provided. If `accessToken` is used the
+   * The Asana personal access token of the bot account. With
+   * `registerWebhook` (the default) either `accessToken` or
+   * `accessTokenSecret` must be provided. If `accessToken` is used the
    * construct creates an internal Secrets Manager secret to store it.
    *
    * Avoid passing this at synth time in CI by preferring `accessTokenSecret`
@@ -56,9 +60,12 @@ export interface AsanaChatWebhookProps {
   readonly accessTokenSecret?: ISecret;
 
   /**
-   * Asana workspace GID the bot lives in.
+   * Asana workspace GID the bot lives in. Required with `registerWebhook`
+   * (the default). When set, it is passed to the handler as
+   * `ASANA_WORKSPACE_GID`; leave it unset for a handler that serves every
+   * workspace the bot belongs to.
    */
-  readonly workspaceGid: string;
+  readonly workspaceGid?: string;
 
   /**
    * Optional override for the resource GID the webhook is registered on.
@@ -68,11 +75,32 @@ export interface AsanaChatWebhookProps {
   readonly resourceGid?: string;
 
   /**
-   * HTTP API route path that Asana will POST webhook events to.
+   * HTTP API route path that Asana will POST webhook events to. Ignored when
+   * `webhookUrl` is set.
    *
    * @default "/webhooks/asana"
    */
   readonly webhookPath?: string;
+
+  /**
+   * Existing URL that routes Asana deliveries to `handler`, such as a route
+   * on an API Gateway REST API you own. When set, the construct creates no
+   * HTTP API and `httpApi` is undefined; wiring the route to `handler` is up
+   * to you.
+   *
+   * @default - a new HTTP API with a `webhookPath` route
+   */
+  readonly webhookUrl?: string;
+
+  /**
+   * Register the webhook at deploy time with a custom resource. The custom
+   * resource reads the bot's token from Secrets Manager during the deploy
+   * and runs a prebuilt provider Lambda. Set to `false` to deploy without
+   * it and register webhooks at runtime with `reconcileAsanaWebhooks`.
+   *
+   * @default true
+   */
+  readonly registerWebhook?: boolean;
 
   /**
    * Log retention for the custom resource provider Lambda.
@@ -83,10 +111,10 @@ export interface AsanaChatWebhookProps {
 }
 
 /**
- * Provisions an HTTP API endpoint backed by the supplied handler Lambda, a
- * Secrets Manager secret for the webhook signing key, and a custom resource
- * that registers (and later deletes) an Asana webhook against the bot's
- * user-task-list resource.
+ * Provisions a Secrets Manager secret for the webhook signing keys and,
+ * by default, an HTTP API endpoint backed by the supplied handler Lambda and
+ * a custom resource that registers (and later deletes) an Asana webhook
+ * against the bot's user-task-list resource.
  *
  * @example
  * ```ts
@@ -101,10 +129,8 @@ export interface AsanaChatWebhookProps {
  * @public
  */
 export class AsanaChatWebhook extends Construct {
-  /**
-   * The HTTP API that receives Asana webhook deliveries.
-   */
-  public readonly httpApi: IHttpApi;
+  private readonly createdHttpApi: IHttpApi | undefined;
+  private readonly registeredWebhookGid: string | undefined;
 
   /**
    * The Secrets Manager secret that stores the Asana webhook signing secret.
@@ -118,20 +144,45 @@ export class AsanaChatWebhook extends Construct {
   public readonly webhookUrl: string;
 
   /**
-   * GID of the Asana webhook registration (available after deployment).
+   * The HTTP API that receives Asana webhook deliveries. Throws when
+   * `webhookUrl` was passed, because the construct created no HTTP API.
    */
-  public readonly webhookGid: string;
+  public get httpApi(): IHttpApi {
+    if (!this.createdHttpApi) {
+      throw new Error(
+        "AsanaChatWebhook created no HTTP API because `webhookUrl` was passed.",
+      );
+    }
+    return this.createdHttpApi;
+  }
+
+  /**
+   * GID of the Asana webhook registration (available after deployment).
+   * Throws when `registerWebhook` is `false`.
+   */
+  public get webhookGid(): string {
+    if (this.registeredWebhookGid === undefined) {
+      throw new Error(
+        "AsanaChatWebhook registered no webhook because `registerWebhook` is false.",
+      );
+    }
+    return this.registeredWebhookGid;
+  }
 
   constructor(scope: Construct, id: string, props: AsanaChatWebhookProps) {
     super(scope, id);
 
-    if (!props.accessToken && !props.accessTokenSecret) {
+    const registerWebhook = props.registerWebhook ?? true;
+    if (registerWebhook && !props.accessToken && !props.accessTokenSecret) {
       throw new Error(
         "AsanaChatWebhook requires either `accessToken` or `accessTokenSecret`.",
       );
     }
-
-    const webhookPath = normalizePath(props.webhookPath ?? "/webhooks/asana");
+    if (registerWebhook && !props.workspaceGid) {
+      throw new Error(
+        "AsanaChatWebhook requires `workspaceGid` unless `registerWebhook` is false.",
+      );
+    }
 
     const webhookSecret = new Secret(this, "WebhookSecret", {
       description: `Asana webhook signing secret for ${Stack.of(this).stackName}/${id}`,
@@ -147,33 +198,58 @@ export class AsanaChatWebhook extends Construct {
       "ASANA_WEBHOOK_SECRET_ARN",
       webhookSecret.secretArn,
     );
-    props.handler.addEnvironment("ASANA_WORKSPACE_GID", props.workspaceGid);
+    if (props.workspaceGid) {
+      props.handler.addEnvironment("ASANA_WORKSPACE_GID", props.workspaceGid);
+    }
 
     const patSecret = resolvePatSecret(this, props);
-    patSecret.grantRead(props.handler);
-    props.handler.addEnvironment("ASANA_PAT_SECRET_ARN", patSecret.secretArn);
+    if (patSecret) {
+      patSecret.grantRead(props.handler);
+      props.handler.addEnvironment("ASANA_PAT_SECRET_ARN", patSecret.secretArn);
+    }
 
-    const httpApi = new HttpApi(this, "HttpApi", {
-      description: `Asana webhook HTTP API (${id})`,
-      corsPreflight: {
-        allowMethods: [CorsHttpMethod.POST, CorsHttpMethod.GET],
-        allowOrigins: ["*"],
-        allowHeaders: [
-          "x-hook-secret",
-          "x-hook-signature",
-          "content-type",
-        ],
-      },
-    });
+    let httpApi: HttpApi | undefined;
+    let webhookUrl = props.webhookUrl;
+    if (webhookUrl === undefined) {
+      const webhookPath = normalizePath(props.webhookPath ?? "/webhooks/asana");
+      httpApi = new HttpApi(this, "HttpApi", {
+        description: `Asana webhook HTTP API (${id})`,
+        corsPreflight: {
+          allowMethods: [CorsHttpMethod.POST, CorsHttpMethod.GET],
+          allowOrigins: ["*"],
+          allowHeaders: [
+            "x-hook-secret",
+            "x-hook-signature",
+            "content-type",
+          ],
+        },
+      });
 
-    httpApi.addRoutes({
-      path: webhookPath,
-      methods: [HttpMethod.POST, HttpMethod.GET],
-      integration: new HttpLambdaIntegration("AsanaHandler", props.handler),
-    });
+      httpApi.addRoutes({
+        path: webhookPath,
+        methods: [HttpMethod.POST, HttpMethod.GET],
+        integration: new HttpLambdaIntegration("AsanaHandler", props.handler),
+      });
 
-    const webhookUrl = `${httpApi.apiEndpoint}${webhookPath}`;
+      webhookUrl = `${httpApi.apiEndpoint}${webhookPath}`;
+    }
 
+    this.createdHttpApi = httpApi;
+    this.webhookSecret = webhookSecret;
+    this.webhookUrl = webhookUrl;
+    this.registeredWebhookGid =
+      registerWebhook && patSecret && props.workspaceGid
+        ? this.addRegistration(props, patSecret, props.workspaceGid, httpApi)
+        : undefined;
+  }
+
+  /** The deploy-time custom resource that registers the webhook. */
+  private addRegistration(
+    props: AsanaChatWebhookProps,
+    patSecret: ISecret,
+    workspaceGid: string,
+    httpApi: HttpApi | undefined,
+  ): string {
     const providerLambda = new LambdaFunction(this, "ProviderHandler", {
       runtime: Runtime.NODEJS_24_X,
       handler: "provider-handler.handler",
@@ -196,17 +272,15 @@ export class AsanaChatWebhook extends Construct {
       serviceToken: provider.serviceToken,
       resourceType: "Custom::AsanaWebhook",
       properties: {
-        targetUrl: webhookUrl,
-        workspaceGid: props.workspaceGid,
+        targetUrl: this.webhookUrl,
+        workspaceGid,
         ...(props.resourceGid ? { resourceGid: props.resourceGid } : {}),
       },
     });
-    registration.node.addDependency(httpApi);
-
-    this.httpApi = httpApi;
-    this.webhookSecret = webhookSecret;
-    this.webhookUrl = webhookUrl;
-    this.webhookGid = registration.getAttString("WebhookGid");
+    if (httpApi) {
+      registration.node.addDependency(httpApi);
+    }
+    return registration.getAttString("WebhookGid");
   }
 }
 
@@ -247,9 +321,12 @@ const resolveProviderAssetPath = (): string => {
 const resolvePatSecret = (
   scope: Construct,
   props: AsanaChatWebhookProps,
-): ISecret => {
+): ISecret | undefined => {
   if (props.accessTokenSecret) {
     return props.accessTokenSecret;
+  }
+  if (!props.accessToken) {
+    return undefined;
   }
   return new Secret(scope, "AccessTokenSecret", {
     description: "Asana bot personal access token",

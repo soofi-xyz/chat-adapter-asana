@@ -84,7 +84,7 @@ jobs:
                 install_retry "chat@^4.0.0" "${NAME}@${VERSION}"
                 node -e "
                   import('${NAME}').then(m => {
-                    const required = ['createAsanaAdapter', 'AsanaAdapter', 'AsanaFormatConverter', 'InMemoryWebhookSecretStore'];
+                    const required = ['createAsanaAdapter', 'AsanaAdapter', 'AsanaFormatConverter', 'InMemoryWebhookSecretStore', 'reconcileAsanaWebhooks', 'asanaWebhookTarget'];
                     const missing = required.filter(k => !(k in m));
                     if (missing.length) { console.error('Missing exports:', missing); process.exit(1); }
                     console.log('OK:', required.join(', '));
