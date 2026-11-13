@@ -56,7 +56,7 @@ The factory reads these if the matching config fields are not passed explicitly.
 | Variable               | Required | Description                                                                                                                                                                                                                   |
 | ---------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ASANA_PAT`            | Yes      | Personal access token for the bot account. `ASANA_ACCESS_TOKEN` is accepted as an alias.                                                                                                                                      |
-| `ASANA_WORKSPACE_GID`  | Yes      | GID of the Asana workspace the bot lives in.                                                                                                                                                                                  |
+| `ASANA_WORKSPACE_GID`  | No       | GID of the Asana workspace the bot lives in. Leave unset to serve every workspace the bot belongs to (see [Multiple workspaces](#multiple-workspaces)).                                                                       |
 | `ASANA_WEBHOOK_SECRET` | No       | Pre-shared webhook signing secret. Only useful when you are *not* using a `WebhookSecretStore`; prefer `SecretsManagerWebhookSecretStore` in production so the secret issued during the handshake is persisted automatically. |
 
 
@@ -68,7 +68,7 @@ The factory reads these if the matching config fields are not passed explicitly.
 | Option                        | Type                                            | Default                                                     | Description                                                                                                                                                                                                                                                                          |
 | ----------------------------- | ----------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `accessToken`                 | `string`                                        | `process.env.ASANA_PAT` ?? `process.env.ASANA_ACCESS_TOKEN` | Bot personal access token. Required.                                                                                                                                                                                                                                                 |
-| `workspaceGid`                | `string`                                        | `process.env.ASANA_WORKSPACE_GID`                           | Asana workspace GID. Required.                                                                                                                                                                                                                                                       |
+| `workspaceGid`                | `string`                                        | `process.env.ASANA_WORKSPACE_GID`                           | Asana workspace GID. When set, every thread is in the channel `asana:<workspaceGid>`. When unset, each task is its own channel and `message.raw.workspaceGid` carries the workspace.                                                                                                 |
 | `webhookSecretStore`          | `WebhookSecretStore`                            | `InMemoryWebhookSecretStore`                                | Durable store for the handshake signing secret. Use `SecretsManagerWebhookSecretStore` in production.                                                                                                                                                                                |
 | `webhookSecret`               | `string`                                        | `process.env.ASANA_WEBHOOK_SECRET`                          | Pre-seeded signing secret. Ignored when a `webhookSecretStore` is configured.                                                                                                                                                                                                        |
 | `botUser`                     | `{ gid: string; name: string; email?: string }` | fetched from `/users/me` on first use                       | Cached bot identity. Provide it up front to avoid an extra Asana API call at cold start.                                                                                                                                                                                             |
@@ -87,7 +87,10 @@ The factory reads these if the matching config fields are not passed explicitly.
 | `secretArn` | `string`               | —          | ARN of the AWS Secrets Manager secret that stores the webhook signing key. Required. |
 | `client`    | `SecretsManagerClient` | —          | Pre-configured client from `@aws-sdk/client-secrets-manager`. Required.              |
 | `jsonKey`   | `string`               | `"secret"` | Key inside the JSON-encoded `SecretString` that holds the signing key.               |
-| `plainText` | `boolean`              | `false`    | Treat the `SecretString` as a raw string instead of JSON.                            |
+| `plainText` | `boolean`              | `false`    | Treat the `SecretString` as a raw string instead of JSON. Holds only the unkeyed secret. |
+| `writeSettleMs` | `number`           | `250`      | How long a write waits before reading the secret back to check it was not overwritten. |
+
+The JSON layout is `{ "secret": "<unkeyed>", "workspaces": { "<workspaceGid>": "<secret>" } }`, so one secret holds every workspace's webhook secret. Secrets Manager has no conditional write, so `set` and `delete` are read-modify-write: each write reads the secret back and re-applies its change if a concurrent writer overwrote it, but that only narrows the race. **Serialize writers**: run `reconcileAsanaWebhooks` with a concurrency of 1. The adapter writes only during a handshake, which happens inside reconcile's `POST /webhooks` call, so it is ordered with reconcile's writes.
 
 
 `@aws-sdk/client-secrets-manager` is an optional peer dependency; install it in your app if you use this store.
@@ -113,6 +116,34 @@ The factory reads these if the matching config fields are not passed explicitly.
   ```
    Asana sends a handshake `POST` with an `X-Hook-Secret` header; the adapter's `AsanaAdapter.handleWebhook` echoes it back and persists it via the configured `WebhookSecretStore`. Subsequent deliveries are verified with HMAC-SHA256 against `X-Hook-Signature`.
 
+## Multiple workspaces
+
+Asana has no event for "the bot joined a workspace", so the adapter ships a reconcile operation that you run on a schedule (and at install). It makes every workspace the bot belongs to have exactly one webhook on the bot's *My Tasks* list, and removes webhooks for workspaces the bot has left. It is safe to run repeatedly.
+
+```ts
+import {
+  reconcileAsanaWebhooks,
+  SecretsManagerWebhookSecretStore,
+} from "@soofi-xyz/chat-adapter-asana";
+
+const secretStore = new SecretsManagerWebhookSecretStore({ secretArn, client });
+
+// In a scheduled Lambda. Without a token it returns { skipped: "missing-access-token" }.
+const result = await reconcileAsanaWebhooks({
+  accessToken: await readTokenOrNull(),
+  targetUrl: "https://api.example.com/webhooks/asana",
+  secretStore, // the same store the webhook handler's adapter uses
+});
+// result: { workspaces, created, deleted, unchanged, errors }
+```
+
+Each Asana webhook has its own `X-Hook-Secret`, and a delivery does not say which webhook sent it. So each workspace's webhook targets `asanaWebhookTarget(targetUrl, workspaceGid)`, which is `targetUrl?workspace=<workspaceGid>`, and the adapter checks the signature against that workspace's secret. Keep the query string when you convert the incoming request to a `Request`. For a keyed URL, the adapter:
+
+- accepts a handshake only while reconcile is registering that workspace, and answers 403 otherwise;
+- answers 410 to deliveries for a workspace with no stored secret, which tells Asana to delete webhooks the bot can no longer remove itself.
+
+Creating a webhook makes Asana call the target URL before `POST /webhooks` returns, so the handler must be live, using the same store, while reconcile runs. A failure in one workspace is reported in `result.errors` and retried on the next run. A URL without `?workspace=` keeps the single-webhook behaviour above.
+
 ## Features
 
 - **Task → thread mapping.** Each Asana task acts as a Chat SDK thread; comments become messages.
@@ -122,7 +153,7 @@ The factory reads these if the matching config fields are not passed explicitly.
 - **File attachments.** `thread.post({ files: [...] })` uploads each file as an Asana task attachment.
 - **Native emoji reactions.** `addReaction` / `removeReaction` use Asana's `reaction_summary` feature (`PUT /stories/{gid}`). Chat SDK `EmojiValue` objects and shortcode strings are normalized to unicode via `EmojiResolver`.
 - **Webhook handshake + signature verification.** `X-Hook-Secret` handshake and `X-Hook-Signature` HMAC-SHA256 verification are handled inside `AsanaAdapter.handleWebhook`.
-- **Pluggable secret storage.** Ships `InMemoryWebhookSecretStore` (tests/demos) and `SecretsManagerWebhookSecretStore` (AWS). Implement `WebhookSecretStore` for Redis, DynamoDB, SSM, etc.
+- **Pluggable secret storage.** Ships `InMemoryWebhookSecretStore` (tests/demos) and `SecretsManagerWebhookSecretStore` (AWS). Implement `WebhookSecretStore` (or `KeyedWebhookSecretStore`, for multiple workspaces) for Redis, DynamoDB, SSM, etc.
 - **Rate-limit handling.** The REST client honours Asana's `Retry-After` header and retries throttled requests.
 - **TypeScript first.** Exports `AsanaAdapterConfig`, `AsanaThreadId`, `AsanaRawMessage`, and `AsanaMessageKind` for use in your own type annotations.
 

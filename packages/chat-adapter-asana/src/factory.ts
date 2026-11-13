@@ -15,7 +15,7 @@ type FactoryConfig = Partial<AsanaAdapterConfig> & {
 /**
  * Create an AsanaAdapter with optional environment-variable fallbacks:
  *  - `ASANA_PAT` / `ASANA_ACCESS_TOKEN`
- *  - `ASANA_WORKSPACE_GID`
+ *  - `ASANA_WORKSPACE_GID` (optional; see `AsanaAdapterConfig.workspaceGid`)
  *  - `ASANA_WEBHOOK_SECRET`
  */
 export const createAsanaAdapter = (config: FactoryConfig = {}): AsanaAdapter => {
@@ -32,13 +32,6 @@ export const createAsanaAdapter = (config: FactoryConfig = {}): AsanaAdapter => 
       "Asana access token is required. Pass it in config or set ASANA_PAT.",
     );
   }
-  if (!workspaceGid) {
-    throw new ValidationError(
-      "asana",
-      "Asana workspace GID is required. Pass it in config or set ASANA_WORKSPACE_GID.",
-    );
-  }
-
   const internal: AsanaAdapterInternalConfig = {
     accessToken,
     workspaceGid,
